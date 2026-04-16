@@ -23,7 +23,7 @@ const CONSTELLATION_NAMES: Record<string, string> = {
   J: 'QZSS',
 }
 
-const SIZE = 300
+const SIZE = 320
 const CENTER = SIZE / 2
 const RADIUS = SIZE / 2 - 30
 
@@ -69,10 +69,10 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
         <div className="flex flex-col items-center">
           <svg
             viewBox={`0 0 ${SIZE} ${SIZE}`}
-            className="w-full max-w-[300px]"
+            className="w-full max-w-[320px]"
           >
-            {/* Dark background for polar plot */}
-            <circle cx={CENTER} cy={CENTER} r={RADIUS} fill="#111827" />
+            {/* Background */}
+            <circle cx={CENTER} cy={CENTER} r={RADIUS} fill="white" className="dark:fill-gray-900" />
 
             {/* Concentric elevation circles */}
             {[0, 15, 30, 45, 60, 75, 90].map((el) => {
@@ -84,17 +84,18 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
                   cy={CENTER}
                   r={r}
                   fill="none"
-                  stroke="#374151"
+                  stroke="#d1d5db"
                   strokeWidth={el === 0 ? 1.5 : 0.5}
+                  className="dark:stroke-gray-600"
                 />
               )
             })}
 
             {/* Cross hairs */}
             <line x1={CENTER} y1={CENTER - RADIUS} x2={CENTER} y2={CENTER + RADIUS}
-              stroke="#374151" strokeWidth={0.5} />
+              stroke="#d1d5db" strokeWidth={0.5} className="dark:stroke-gray-600" />
             <line x1={CENTER - RADIUS} y1={CENTER} x2={CENTER + RADIUS} y2={CENTER}
-              stroke="#374151" strokeWidth={0.5} />
+              stroke="#d1d5db" strokeWidth={0.5} className="dark:stroke-gray-600" />
 
             {/* Cardinal labels */}
             {(['N', 'E', 'S', 'W'] as const).map((label, i) => {
@@ -154,10 +155,10 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
                       points={points}
                       fill="none"
                       stroke={color}
-                      strokeWidth={1.5}
+                      strokeWidth={2}
                       opacity={0.6}
                     />
-                    <circle cx={x} cy={y} r={4} fill={color} opacity={0.9} />
+                    <circle cx={x} cy={y} r={4.5} fill={color} opacity={0.9} />
                     <text
                       x={x} y={y - 7}
                       textAnchor="middle" fontSize={7} fontWeight={600}
@@ -175,7 +176,7 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
                   const { x, y } = polarToXY(sat.azimuth, sat.elevation)
                   const color = CONSTELLATION_COLORS[sat.system] ?? '#9ca3af'
                   return (
-                    <circle key={`${sat.system}${sat.prn}-${i}`} cx={x} cy={y} r={4} fill={color} opacity={0.9} />
+                    <circle key={`${sat.system}${sat.prn}-${i}`} cx={x} cy={y} r={4.5} fill={color} opacity={0.9} />
                   )
                 })}
                 {Array.from(arcs.entries()).map(([key, positions]) => {

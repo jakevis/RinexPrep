@@ -556,84 +556,122 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 			}
 		}
 	}
-	// Fallback: generate pseudo-positions from RAWX data when no NAV-SAT available.
-	// Distribute satellites around the plot by constellation and PRN for visual representation.
+	// Generate sky tracks from RAWX observation data.
+	// Each satellite gets a pseudo-arc based on its PRN (orbital slot) and visibility window.
 	if len(skyview) == 0 && len(epochs) > 0 {
-		type satKey struct {
-			system string
-			prn    int
+		type satTrack struct {
+			system     string
+			prn        int
+			firstEpoch int
+			lastEpoch  int
+			snrSamples []float64
 		}
-		satSNR := make(map[satKey][]float64)
 
-		for _, ep := range epochs {
+		tracks := make(map[string]*satTrack)
+
+		for i, ep := range epochs {
 			for _, sat := range ep.Satellites {
-				key := satKey{system: sat.Constellation.String(), prn: int(sat.PRN)}
+				key := fmt.Sprintf("%s%d", sat.Constellation.String(), sat.PRN)
 				bestSNR := 0.0
 				for _, sig := range sat.Signals {
 					if sig.SNR > bestSNR {
 						bestSNR = sig.SNR
 					}
 				}
-				if bestSNR > 0 {
-					satSNR[key] = append(satSNR[key], bestSNR)
+
+				t, exists := tracks[key]
+				if !exists {
+					t = &satTrack{
+						system:     sat.Constellation.String(),
+						prn:        int(sat.PRN),
+						firstEpoch: i,
+					}
+					tracks[key] = t
 				}
+				t.lastEpoch = i
+				t.snrSamples = append(t.snrSamples, bestSNR)
 			}
 		}
 
-		constellationBaseAz := map[string]float64{
-			"G": 0,
-			"R": 90,
-			"E": 180,
-			"C": 270,
-			"S": 45,
-			"J": 315,
-		}
+		// Generate arc positions for each satellite.
+		totalEpochs := len(epochs)
 
-		constellationCounts := make(map[string]int)
-		constellationIdx := make(map[string]int)
-		for key := range satSNR {
-			constellationCounts[key.system]++
-		}
+		for _, t := range tracks {
+			// Determine arc parameters from PRN.
+			// Use PRN with offsets per constellation to spread satellites around the sky.
+			basePRN := t.prn
+			if t.system == "R" {
+				basePRN += 32
+			}
+			if t.system == "E" {
+				basePRN += 56
+			}
+			if t.system == "C" {
+				basePRN += 92
+			}
 
-		skyview = make([]SatPosition, 0, len(satSNR))
-		for key, snrs := range satSNR {
+			// Base azimuth: golden angle distribution for even spread.
+			baseAz := math.Mod(float64(basePRN)*137.508, 360)
+
+			// Arc sweep: satellites cross ~120-180 degrees of azimuth during a pass.
+			arcSweep := 120.0 + math.Mod(float64(basePRN)*23.7, 60.0)
+			startAz := baseAz - arcSweep/2
+
+			// Peak elevation: use average SNR as a rough proxy.
 			avgSNR := 0.0
-			for _, s := range snrs {
+			for _, s := range t.snrSamples {
 				avgSNR += s
 			}
-			avgSNR /= float64(len(snrs))
-
-			baseAz, ok := constellationBaseAz[key.system]
-			if !ok {
-				baseAz = 0
+			avgSNR /= float64(len(t.snrSamples))
+			peakEl := 20.0 + (avgSNR-20.0)/30.0*60.0
+			if peakEl < 15 {
+				peakEl = 15
+			}
+			if peakEl > 85 {
+				peakEl = 85
 			}
 
-			idx := constellationIdx[key.system]
-			count := constellationCounts[key.system]
-			spread := 70.0
-			var azOffset float64
-			if count > 1 {
-				azOffset = -spread/2 + spread*float64(idx)/float64(count-1)
+			// Generate ~20 points per arc (or fewer if satellite was briefly visible).
+			numPoints := 20
+			epochRange := t.lastEpoch - t.firstEpoch
+			if epochRange < numPoints {
+				numPoints = epochRange + 1
 			}
-			azimuth := math.Mod(baseAz+azOffset+360, 360)
-
-			elevation := 15.0 + (avgSNR-20.0)/(50.0-20.0)*60.0
-			if elevation < 10 {
-				elevation = 10
-			}
-			if elevation > 80 {
-				elevation = 80
+			if numPoints < 2 {
+				numPoints = 2
 			}
 
-			skyview = append(skyview, SatPosition{
-				System:    key.system,
-				PRN:       key.prn,
-				Azimuth:   azimuth,
-				Elevation: elevation,
-				SNR:       avgSNR,
-			})
+			for j := 0; j < numPoints; j++ {
+				frac := float64(j) / float64(numPoints-1)
 
-			constellationIdx[key.system] = idx + 1
+				az := math.Mod(startAz+frac*arcSweep+360, 360)
+
+				// Parabolic elevation curve peaking at frac=0.5.
+				el := peakEl * (1 - math.Pow(2*frac-1, 2))
+				if el < 5 {
+					el = 5
+				}
+
+				epochIdx := t.firstEpoch + int(frac*float64(epochRange))
+				if epochIdx >= totalEpochs {
+					epochIdx = totalEpochs - 1
+				}
+				timeSec := float64(epochs[epochIdx].Time.UnixNanos()-startNanos) / 1e9
+
+				snrIdx := int(frac * float64(len(t.snrSamples)-1))
+				if snrIdx >= len(t.snrSamples) {
+					snrIdx = len(t.snrSamples) - 1
+				}
+
+				skyview = append(skyview, SatPosition{
+					System:    t.system,
+					PRN:       t.prn,
+					Azimuth:   az,
+					Elevation: el,
+					SNR:       t.snrSamples[snrIdx],
+					TimeSec:   timeSec,
+				})
+			}
 		}
 	}
 	if skyview == nil {
