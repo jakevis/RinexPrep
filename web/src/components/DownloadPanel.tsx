@@ -216,7 +216,7 @@ export default function DownloadPanel({
                     {Object.entries(opusDetails).map(([key, val]) => (
                       <div key={key} className="contents">
                         <span className="text-gray-500 dark:text-gray-400">{key.replace(/_/g, ' ')}</span>
-                        <span className="text-gray-800 dark:text-gray-200 font-mono">{val}</span>
+                        <span className="text-gray-800 dark:text-gray-200 font-mono break-all text-[11px]">{val}</span>
                       </div>
                     ))}
                   </div>
