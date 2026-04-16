@@ -1,11 +1,9 @@
 {
   "name": "RinexPrep Dev",
   "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
+    "dockerfile": "Dockerfile"
   },
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/git:1": {}
   },
   "customizations": {
@@ -28,10 +26,7 @@
       }
     }
   },
-  "postCreateCommand": "go mod download && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest",
+  "postCreateCommand": "go mod tidy || true",
   "remoteUser": "vscode",
-  "forwardPorts": [8080],
-  "mounts": [
-    "source=${localWorkspaceFolder}/testdata,target=/workspace/testdata,type=bind"
-  ]
+  "forwardPorts": [8080]
 }
