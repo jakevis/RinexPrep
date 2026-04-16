@@ -1,4 +1,4 @@
-import type { JobStatus, PreviewData } from './types'
+import type { JobStatus, PreviewData, OutputFile } from './types'
 
 const API_BASE = '/api/v1'
 
@@ -56,20 +56,24 @@ export async function submitTrim(
   if (!res.ok) throw new Error(`Failed to submit trim: ${res.statusText}`)
 }
 
-export async function processJob(
-  jobId: string,
-  format: string,
-): Promise<void> {
+export async function processJob(jobId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/jobs/${jobId}/process`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ format }),
+    body: JSON.stringify({}),
   })
   if (!res.ok) throw new Error(`Failed to process job: ${res.statusText}`)
 }
 
-export async function downloadResult(jobId: string): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/jobs/${jobId}/download`)
+export async function getOutputFiles(jobId: string): Promise<{ files: OutputFile[] }> {
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/files`)
+  if (!res.ok) throw new Error('Failed to get files')
+  return res.json()
+}
+
+export async function downloadResult(jobId: string, format?: string): Promise<Blob> {
+  const params = format ? `?format=${format}` : ''
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/download${params}`)
   if (!res.ok) throw new Error(`Failed to download: ${res.statusText}`)
   return res.blob()
 }

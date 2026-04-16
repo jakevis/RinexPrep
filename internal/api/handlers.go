@@ -235,21 +235,8 @@ func (s *Server) handleProcess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body struct {
-		Format string `json:"format"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		jsonError(w, "invalid JSON body", http.StatusBadRequest)
-		return
-	}
-
-	switch body.Format {
-	case "rinex2", "rinex3", "both":
-		job.Format = body.Format
-	default:
-		jsonError(w, `format must be "rinex2", "rinex3", or "both"`, http.StatusBadRequest)
-		return
-	}
+	// Always generate both RINEX 2.11 and 3.x output formats.
+	job.Format = "both"
 
 	job.mu.Lock()
 	job.Status = StatusProcessing
@@ -351,7 +338,7 @@ func (s *Server) handleProcess(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDownload serves the processed RINEX file(s).
-// GET /api/v1/jobs/{id}/download
+// GET /api/v1/jobs/{id}/download?format=rinex2|rinex3  (or no param for zip)
 func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
@@ -370,41 +357,102 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Single output file: serve directly.
-	if len(job.OutputFiles) == 1 {
-		outPath := filepath.Join(s.jobStore.dir, job.OutputFiles[0])
-		if _, err := os.Stat(outPath); os.IsNotExist(err) {
-			jsonError(w, "output file not found", http.StatusNotFound)
+	format := r.URL.Query().Get("format")
+	jobDir := filepath.Join(s.jobStore.dir, job.ID)
+
+	switch format {
+	case "rinex2":
+		outPath := filepath.Join(jobDir, "output.obs")
+		if _, err := os.Stat(outPath); err != nil {
+			jsonError(w, "RINEX 2.11 file not found", http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(outPath)))
+		w.Header().Set("Content-Disposition", `attachment; filename="output.obs"`)
+		w.Header().Set("Content-Type", "application/octet-stream")
 		http.ServeFile(w, r, outPath)
+
+	case "rinex3":
+		outPath := filepath.Join(jobDir, "output.rnx")
+		if _, err := os.Stat(outPath); err != nil {
+			jsonError(w, "RINEX 3.x file not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Disposition", `attachment; filename="output.rnx"`)
+		w.Header().Set("Content-Type", "application/octet-stream")
+		http.ServeFile(w, r, outPath)
+
+	default:
+		// Zip all output files — explicitly close before return.
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", `attachment; filename="rinex_output.zip"`)
+
+		zw := zip.NewWriter(w)
+
+		for _, relPath := range job.OutputFiles {
+			absPath := filepath.Join(s.jobStore.dir, relPath)
+			f, err := os.Open(absPath)
+			if err != nil {
+				log.Printf("zip: failed to open %s: %v", absPath, err)
+				continue
+			}
+			fw, err := zw.Create(filepath.Base(absPath))
+			if err != nil {
+				f.Close()
+				log.Printf("zip: failed to create entry: %v", err)
+				continue
+			}
+			io.Copy(fw, f)
+			f.Close()
+		}
+		if err := zw.Close(); err != nil {
+			log.Printf("zip: failed to finalize: %v", err)
+		}
+	}
+}
+
+// handleListFiles returns the list of available output files for a job.
+// GET /api/v1/jobs/{id}/files
+func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Multiple output files (format "both"): create a zip.
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="rinex_output.zip"`)
-
-	zw := zip.NewWriter(w)
-	defer zw.Close()
-
-	for _, relPath := range job.OutputFiles {
-		absPath := filepath.Join(s.jobStore.dir, relPath)
-		f, err := os.Open(absPath)
-		if err != nil {
-			log.Printf("zip: failed to open %s: %v", absPath, err)
-			continue
-		}
-		fw, err := zw.Create(filepath.Base(absPath))
-		if err != nil {
-			f.Close()
-			log.Printf("zip: failed to create entry: %v", err)
-			continue
-		}
-		io.Copy(fw, f)
-		f.Close()
+	id := extractJobID(r.URL.Path, "/api/v1/jobs/", "/files")
+	job, ok := s.jobStore.Get(id)
+	if !ok {
+		jsonError(w, "job not found", http.StatusNotFound)
+		return
 	}
+
+	type FileInfo struct {
+		Name   string `json:"name"`
+		Format string `json:"format"`
+		Size   int64  `json:"size"`
+		Label  string `json:"label"`
+	}
+
+	var files []FileInfo
+	jobDir := filepath.Join(s.jobStore.dir, job.ID)
+
+	if info, err := os.Stat(filepath.Join(jobDir, "output.obs")); err == nil {
+		files = append(files, FileInfo{
+			Name: "output.obs", Format: "rinex2", Size: info.Size(),
+			Label: "RINEX 2.11 (.obs)",
+		})
+	}
+	if info, err := os.Stat(filepath.Join(jobDir, "output.rnx")); err == nil {
+		files = append(files, FileInfo{
+			Name: "output.rnx", Format: "rinex3", Size: info.Size(),
+			Label: "RINEX 3.x (.rnx)",
+		})
+	}
+
+	if files == nil {
+		files = []FileInfo{}
+	}
+
+	jsonResponse(w, http.StatusOK, map[string]any{"files": files})
 }
 
 // handleDelete removes a job and its associated files.

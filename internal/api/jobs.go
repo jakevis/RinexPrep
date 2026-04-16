@@ -3,6 +3,9 @@ package api
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"log"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -105,9 +108,30 @@ type JobStore struct {
 
 // NewJobStore creates a JobStore that uses dir as the base for job files.
 func NewJobStore(dir string) *JobStore {
-	return &JobStore{
+	js := &JobStore{
 		jobs: make(map[string]*Job),
 		dir:  dir,
+	}
+	go js.cleanupLoop()
+	return js
+}
+
+// cleanupLoop removes jobs older than 30 minutes every 5 minutes.
+func (js *JobStore) cleanupLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		js.mu.Lock()
+		now := time.Now().UTC()
+		for id, job := range js.jobs {
+			if now.Sub(job.CreatedAt) > 30*time.Minute {
+				log.Printf("Cleaning up expired job %s (age: %s)", id, now.Sub(job.CreatedAt).Round(time.Second))
+				delete(js.jobs, id)
+				jobDir := filepath.Join(js.dir, id)
+				go os.RemoveAll(jobDir)
+			}
+		}
+		js.mu.Unlock()
 	}
 }
 

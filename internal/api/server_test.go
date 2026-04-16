@@ -309,8 +309,8 @@ func TestProcess(t *testing.T) {
 	result := uploadFile(t, ts, "test.ubx", []byte("data"))
 	id := result["jobId"]
 
-	body := `{"format": "rinex3"}`
-	resp, err := http.Post(ts.URL+"/api/v1/jobs/"+id+"/process", "application/json", bytes.NewBufferString(body))
+	// Process always generates both formats; body can be empty.
+	resp, err := http.Post(ts.URL+"/api/v1/jobs/"+id+"/process", "application/json", bytes.NewBufferString("{}"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,25 +326,49 @@ func TestProcess(t *testing.T) {
 	if j.Status != StatusReady {
 		t.Fatalf("expected status %q, got %q", StatusReady, j.Status)
 	}
-	if j.Format != "rinex3" {
-		t.Fatalf("expected format rinex3, got %q", j.Format)
+	if j.Format != "both" {
+		t.Fatalf("expected format both, got %q", j.Format)
 	}
 }
 
-func TestProcessInvalidFormat(t *testing.T) {
+func TestListFiles(t *testing.T) {
 	_, ts := newTestServer(t)
 	result := uploadFile(t, ts, "test.ubx", []byte("data"))
 	id := result["jobId"]
 
-	body := `{"format": "invalid"}`
-	resp, err := http.Post(ts.URL+"/api/v1/jobs/"+id+"/process", "application/json", bytes.NewBufferString(body))
+	// Process first to generate output files.
+	resp, err := http.Post(ts.URL+"/api/v1/jobs/"+id+"/process", "application/json", bytes.NewBufferString("{}"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	resp.Body.Close()
 
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	// List output files.
+	resp2, err := http.Get(ts.URL + "/api/v1/jobs/" + id + "/files")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp2.Body)
+		t.Fatalf("files expected 200, got %d: %s", resp2.StatusCode, b)
+	}
+
+	var filesResp struct {
+		Files []struct {
+			Name   string `json:"name"`
+			Format string `json:"format"`
+			Size   int64  `json:"size"`
+			Label  string `json:"label"`
+		} `json:"files"`
+	}
+	json.NewDecoder(resp2.Body).Decode(&filesResp)
+
+	// With fake UBX data, output files are created but may be empty;
+	// verify the response structure is valid JSON.
+	if filesResp.Files == nil {
+		t.Fatal("expected files field in response")
 	}
 }
 

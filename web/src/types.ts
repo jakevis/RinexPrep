@@ -7,6 +7,13 @@ export interface JobStatus {
   error?: string
 }
 
+export interface OutputFile {
+  name: string
+  format: string
+  size: number
+  label: string
+}
+
 export interface EpochSummary {
   time_sec: number
   gps_sats: number

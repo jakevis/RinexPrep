@@ -2,20 +2,22 @@ import { useState } from 'react'
 import { Download, CheckCircle2, Loader2, Send } from 'lucide-react'
 import AntennaSelect from './AntennaSelect'
 import * as api from '../api'
+import type { OutputFile } from '../types'
 
 interface DownloadPanelProps {
   jobId: string | null
   isReady: boolean
-  onProcess: (format: string) => void
-  onDownload: () => void
+  onProcess: () => void
+  onDownload: (format?: string) => void
   isProcessing: boolean
+  outputFiles?: OutputFile[]
 }
 
-const FORMAT_OPTIONS = [
-  { value: 'rinex2', label: 'RINEX 2.11' },
-  { value: 'rinex3', label: 'RINEX 3.x' },
-  { value: 'both', label: 'Both' },
-] as const
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 export default function DownloadPanel({
   jobId,
@@ -23,8 +25,8 @@ export default function DownloadPanel({
   onProcess,
   onDownload,
   isProcessing,
+  outputFiles,
 }: DownloadPanelProps) {
-  const [format, setFormat] = useState<string>('rinex3')
   const [email, setEmail] = useState('')
   const [antennaType, setAntennaType] = useState('')
   const [antennaHeight, setAntennaHeight] = useState('')
@@ -63,32 +65,10 @@ export default function DownloadPanel({
         Export
       </h2>
 
-      {/* Format selector */}
-      <div className="mb-4">
-        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">
-          Output Format
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          {FORMAT_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setFormat(opt.value)}
-              className={`px-3 py-2 text-sm rounded-lg border transition-all ${
-                format === opt.value
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 font-medium'
-                  : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Action buttons */}
       {!isReady ? (
         <button
-          onClick={() => onProcess(format)}
+          onClick={() => onProcess()}
           disabled={isProcessing}
           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg font-medium transition-colors"
         >
@@ -105,18 +85,44 @@ export default function DownloadPanel({
           )}
         </button>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/20 rounded-lg px-3 py-2">
             <CheckCircle2 className="w-4 h-4" />
             Processing complete
           </div>
-          <button
-            onClick={onDownload}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            Download RINEX
-          </button>
+          {outputFiles && outputFiles.length > 0 && (
+            <>
+              {outputFiles.map(file => (
+                <button
+                  key={file.format}
+                  onClick={() => onDownload(file.format)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Download className="w-4 h-4 text-indigo-500" />
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{file.label}</span>
+                  </div>
+                  <span className="text-xs text-gray-400">{formatBytes(file.size)}</span>
+                </button>
+              ))}
+              <button
+                onClick={() => onDownload()}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Download All (ZIP)
+              </button>
+            </>
+          )}
+          {(!outputFiles || outputFiles.length === 0) && (
+            <button
+              onClick={() => onDownload()}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Download RINEX
+            </button>
+          )}
         </div>
       )}
 

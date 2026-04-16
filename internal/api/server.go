@@ -52,6 +52,8 @@ func (s *Server) routeJobs(w http.ResponseWriter, r *http.Request) {
 		s.handleProcess(w, r)
 	case hasSuffix(path, "/download"):
 		s.handleDownload(w, r)
+	case hasSuffix(path, "/files"):
+		s.handleListFiles(w, r)
 	case hasSuffix(path, "/opus"):
 		s.handleOPUSSubmit(w, r)
 	default:

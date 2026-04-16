@@ -9,7 +9,7 @@ import DownloadPanel from './components/DownloadPanel'
 import SessionStats from './components/SessionStats'
 import ConfigGuide from './components/ConfigGuide'
 import * as api from './api'
-import type { AppState, PreviewData } from './types'
+import type { AppState, PreviewData, OutputFile } from './types'
 import { Loader2, X } from 'lucide-react'
 
 function App() {
@@ -23,6 +23,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [progressMessage, setProgressMessage] = useState<string | null>(null)
   const [expandedPanel, setExpandedPanel] = useState<string | null>(null)
+  const [outputFiles, setOutputFiles] = useState<OutputFile[] | undefined>()
 
   const handleFileSelected = useCallback(async (file: File) => {
     setError(null)
@@ -76,13 +77,15 @@ function App() {
   }, [])
 
   const handleProcess = useCallback(
-    async (format: string) => {
+    async () => {
       if (!jobId) return
       setIsProcessing(true)
       setError(null)
       try {
         await api.submitTrim(jobId, trimStart, trimEnd)
-        await api.processJob(jobId, format)
+        await api.processJob(jobId)
+        const filesResp = await api.getOutputFiles(jobId)
+        setOutputFiles(filesResp.files)
         setAppState('ready')
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Processing failed')
@@ -93,14 +96,15 @@ function App() {
     [jobId, trimStart, trimEnd],
   )
 
-  const handleDownload = useCallback(async () => {
+  const handleDownload = useCallback(async (format?: string) => {
     if (!jobId) return
     try {
-      const blob = await api.downloadResult(jobId)
+      const blob = await api.downloadResult(jobId, format)
+      const ext = format === 'rinex2' ? '.obs' : format === 'rinex3' ? '.rnx' : '.zip'
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `rinex_${jobId}.zip`
+      a.download = `rinex_output${ext}`
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
@@ -190,6 +194,7 @@ function App() {
                     onProcess={handleProcess}
                     onDownload={handleDownload}
                     isProcessing={isProcessing}
+                    outputFiles={outputFiles}
                   />
                 </div>
               </div>
