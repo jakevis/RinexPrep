@@ -212,18 +212,24 @@ func formatObsLines(sat gnss.SatObs) string {
 		obs[1] = obsVal{l2.Pseudorange, true, 0, snrToSS(l2.SNR)}
 	}
 	// L1: carrier phase
-	if l1 != nil && l1.CPValid && !l1.HalfCycle {
+	if l1 != nil && l1.CPValid {
 		lli := 0
 		if l1.LockTimeSec == 0 {
-			lli = 1
+			lli |= 1 // cycle slip
+		}
+		if l1.HalfCycle {
+			lli |= 4 // half-cycle ambiguity (bit 2)
 		}
 		obs[2] = obsVal{l1.CarrierPhase, true, lli, snrToSS(l1.SNR)}
 	}
 	// L2: carrier phase
-	if l2 != nil && l2.CPValid && !l2.HalfCycle {
+	if l2 != nil && l2.CPValid {
 		lli := 0
 		if l2.LockTimeSec == 0 {
-			lli = 1
+			lli |= 1 // cycle slip
+		}
+		if l2.HalfCycle {
+			lli |= 4 // half-cycle ambiguity (bit 2)
 		}
 		obs[3] = obsVal{l2.CarrierPhase, true, lli, snrToSS(l2.SNR)}
 	}
