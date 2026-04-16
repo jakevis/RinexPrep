@@ -128,7 +128,12 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	opusReq.Header.Set("Content-Type", writer.FormDataContentType())
 
-	client := &http.Client{}
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Don't follow redirects — a redirect means OPUS accepted the submission
+			return http.ErrUseLastResponse
+		},
+	}
 	resp, err := client.Do(opusReq)
 	if err != nil {
 		log.Printf("OPUS submission failed for job %s: %v", id, err)
@@ -143,9 +148,8 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 		jsonResponse(w, http.StatusOK, map[string]interface{}{
-			"status":        "submitted",
-			"message":       "Your RINEX file has been submitted to OPUS. Results will be emailed to " + req.Email,
-			"opus_response": string(body),
+			"status":  "submitted",
+			"message": "Your RINEX file has been submitted to OPUS. Results will be emailed to " + req.Email,
 		})
 	} else {
 		jsonResponse(w, http.StatusBadGateway, map[string]interface{}{
