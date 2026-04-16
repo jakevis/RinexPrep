@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -134,9 +134,11 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 			return http.ErrUseLastResponse
 		},
 	}
+	slog.Info("opus_submit", "job_id", id, "mode", req.Mode, "email", req.Email)
+
 	resp, err := client.Do(opusReq)
 	if err != nil {
-		log.Printf("OPUS submission failed for job %s: %v", id, err)
+		slog.Error("opus_submit_failed", "job_id", id, "error", err)
 		jsonError(w, "OPUS submission failed: "+err.Error(), http.StatusBadGateway)
 		return
 	}
@@ -144,7 +146,7 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 
 	body, _ := io.ReadAll(resp.Body)
 
-	log.Printf("OPUS submission for job %s: status=%d", id, resp.StatusCode)
+	slog.Info("opus_response", "job_id", id, "status_code", resp.StatusCode)
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 		result := map[string]interface{}{

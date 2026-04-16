@@ -3,7 +3,7 @@ package api
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -125,7 +125,8 @@ func (js *JobStore) cleanupLoop() {
 		now := time.Now().UTC()
 		for id, job := range js.jobs {
 			if now.Sub(job.CreatedAt) > 30*time.Minute {
-				log.Printf("Cleaning up expired job %s (age: %s)", id, now.Sub(job.CreatedAt).Round(time.Second))
+				age := now.Sub(job.CreatedAt)
+				slog.Info("job_cleanup", "job_id", id, "age_sec", age.Seconds())
 				delete(js.jobs, id)
 				jobDir := filepath.Join(js.dir, id)
 				go os.RemoveAll(jobDir)

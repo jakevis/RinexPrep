@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -169,15 +170,25 @@ func runConvert(args []string) {
 }
 
 func runServe(args []string) {
-	fs := flag.NewFlagSet("serve", flag.ExitOnError)
-	port := fs.Int("port", 8080, "HTTP server port")
-	dataDir := fs.String("data-dir", "./data", "directory for job data storage")
-	fs.Parse(args)
+	serveFlags := flag.NewFlagSet("serve", flag.ExitOnError)
+	port := serveFlags.Int("port", 8080, "HTTP server port")
+	dataDir := serveFlags.String("data-dir", "./data", "directory for job data storage")
+	jsonLogs := serveFlags.Bool("json-logs", false, "Output structured JSON logs")
+	serveFlags.Parse(args)
+
+	api.SetupLogger(*jsonLogs)
 
 	if err := os.MkdirAll(*dataDir, 0o755); err != nil {
 		fmt.Fprintf(os.Stderr, "error creating data directory: %v\n", err)
 		os.Exit(1)
 	}
+
+	slog.Info("RinexPrep starting",
+		"version", "0.1.0",
+		"port", *port,
+		"data_dir", *dataDir,
+		"cleanup_interval", "30m",
+	)
 
 	srv := api.NewServer(*port, *dataDir)
 
@@ -186,7 +197,6 @@ func runServe(args []string) {
 		srv.SetFrontendFS(distFS)
 	}
 
-	fmt.Fprintf(os.Stderr, "Listening on :%d\n", *port)
 	if err := srv.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		os.Exit(1)

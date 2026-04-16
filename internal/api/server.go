@@ -3,7 +3,7 @@ package api
 import (
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 )
 
@@ -29,9 +29,9 @@ func NewServer(port int, dataDir string) *Server {
 
 // SetupRoutes configures all API and frontend routes.
 func (s *Server) SetupRoutes() {
-	// CORS-aware API routes.
-	s.mux.HandleFunc("/api/v1/upload", s.cors(s.handleUpload))
-	s.mux.HandleFunc("/api/v1/jobs/", s.cors(s.routeJobs))
+	// CORS-aware API routes with request logging.
+	s.mux.HandleFunc("/api/v1/upload", s.cors(requestLogger(s.handleUpload)))
+	s.mux.HandleFunc("/api/v1/jobs/", s.cors(requestLogger(s.routeJobs)))
 
 	// SPA frontend — catch-all.
 	s.mux.HandleFunc("/", s.serveFrontend)
@@ -80,7 +80,7 @@ func (s *Server) cors(next http.HandlerFunc) http.HandlerFunc {
 // Start begins listening and blocks until the server stops.
 func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%d", s.port)
-	log.Printf("RinexPrep API server listening on %s", addr)
+	slog.Info("server_start", "port", s.port, "data_dir", s.jobStore.dir, "version", "0.1.0")
 	return http.ListenAndServe(addr, s.mux)
 }
 

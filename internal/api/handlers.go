@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"math"
 	"net/http"
 	"os"
@@ -75,6 +75,8 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	job.InputFile = filepath.Join(jobDir, "input.ubx")
 	job.mu.Unlock()
 
+	slog.Info("upload", "job_id", job.ID, "filename", header.Filename, "size_bytes", written)
+
 	// Kick off background parsing to generate preview data.
 	go s.parseAndPreview(job)
 
@@ -96,7 +98,7 @@ func (s *Server) parseAndPreview(job *Job) {
 		job.Error = "failed to open input: " + err.Error()
 		job.Progress = ""
 		job.mu.Unlock()
-		log.Printf("parse error for job %s: %v", job.ID, err)
+		slog.Error("parse_failed", "job_id", job.ID, "error", err)
 		return
 	}
 	defer f.Close()
@@ -108,7 +110,7 @@ func (s *Server) parseAndPreview(job *Job) {
 		job.Error = "parse error: " + err.Error()
 		job.Progress = ""
 		job.mu.Unlock()
-		log.Printf("parse error for job %s: %v", job.ID, err)
+		slog.Error("parse_failed", "job_id", job.ID, "error", err)
 		return
 	}
 
@@ -130,6 +132,8 @@ func (s *Server) parseAndPreview(job *Job) {
 	job.Status = StatusPreview
 	job.Progress = "Preview ready"
 	job.mu.Unlock()
+
+	slog.Info("parse_complete", "job_id", job.ID, "epochs", len(epochs))
 }
 
 // handleJobStatus returns the current status of a job.
@@ -332,6 +336,8 @@ func (s *Server) handleProcess(w http.ResponseWriter, r *http.Request) {
 	job.OutputFiles = outputFiles
 	job.mu.Unlock()
 
+	slog.Info("process_complete", "job_id", job.ID, "format", "both", "epochs_out", len(processed))
+
 	job.mu.Lock()
 	defer job.mu.Unlock()
 	jsonResponse(w, http.StatusOK, job)
@@ -392,20 +398,20 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 			absPath := filepath.Join(s.jobStore.dir, relPath)
 			f, err := os.Open(absPath)
 			if err != nil {
-				log.Printf("zip: failed to open %s: %v", absPath, err)
+				slog.Error("zip_open_failed", "path", absPath, "error", err)
 				continue
 			}
 			fw, err := zw.Create(filepath.Base(absPath))
 			if err != nil {
 				f.Close()
-				log.Printf("zip: failed to create entry: %v", err)
+				slog.Error("zip_create_failed", "error", err)
 				continue
 			}
 			io.Copy(fw, f)
 			f.Close()
 		}
 		if err := zw.Close(); err != nil {
-			log.Printf("zip: failed to finalize: %v", err)
+			slog.Error("zip_finalize_failed", "error", err)
 		}
 	}
 }
