@@ -26,11 +26,18 @@ var constellationOrder = []gnss.Constellation{
 	gnss.ConsBeiDou,
 }
 
+// phaseArc tracks the state of a carrier phase arc for cycle slip detection.
+type phaseArc struct {
+	lockTime float64 // last emitted lock time
+	present  bool    // whether phase was emitted last epoch
+}
+
 // Writer3 writes RINEX 3.04 observation files.
 type Writer3 struct {
 	w        io.Writer
 	metadata gnss.Metadata
 	gpsOnly  bool
+	arcs     map[string]*phaseArc // keyed by "G01_0" (satID_band)
 }
 
 // NewWriter3 creates a new RINEX 3.04 writer.
@@ -38,6 +45,7 @@ func NewWriter3(w io.Writer, meta gnss.Metadata) *Writer3 {
 	return &Writer3{
 		w:        w,
 		metadata: meta,
+		arcs:     make(map[string]*phaseArc),
 	}
 }
 
@@ -217,7 +225,7 @@ func (rw *Writer3) WriteEpoch(epoch gnss.Epoch) error {
 		line.WriteString(sat.SatID())
 
 		for _, code := range codes {
-			val, lli, ss := resolveObs3(sat, code)
+			val, lli, ss := rw.resolveObs3(sat, code)
 			if val == 0 {
 				line.WriteString(strings.Repeat(" ", 16))
 			} else {
@@ -228,13 +236,15 @@ func (rw *Writer3) WriteEpoch(epoch gnss.Epoch) error {
 		if _, err := fmt.Fprintln(rw.w, line.String()); err != nil {
 			return err
 		}
+
+		rw.updateArcs(sat)
 	}
 	return nil
 }
 
 // resolveObs3 returns the value, LLI flag, and signal strength for a given
 // RINEX 3 observation code from a satellite's signals.
-func resolveObs3(sat gnss.SatObs, code string) (val float64, lli byte, ss byte) {
+func (rw *Writer3) resolveObs3(sat gnss.SatObs, code string) (val float64, lli byte, ss byte) {
 	lli = ' '
 	ss = ' '
 
@@ -270,10 +280,20 @@ func resolveObs3(sat gnss.SatObs, code string) (val float64, lli byte, ss byte) 
 			val = sig.Pseudorange
 		}
 	case 'L':
+		// Suppress carrier phase when half-cycle ambiguity is unresolved
+		if sig.HalfCycle && !sig.SubHalfCyc {
+			return
+		}
 		if sig.CPValid && sig.CarrierPhase != 0 {
 			val = sig.CarrierPhase
+			key := sat.SatID() + fmt.Sprintf("_%d", targetBand)
+			arc := rw.arcs[key]
 			if sig.LockTimeSec == 0 {
-				lli = '1' // cycle slip
+				lli = '1' // explicit cycle slip from receiver
+			} else if arc != nil && sig.LockTimeSec < arc.lockTime {
+				lli = '1' // lock time decreased → cycle slip between epochs
+			} else if arc != nil && !arc.present {
+				lli = '1' // phase resuming after gap/suppression
 			}
 		}
 	case 'D':
@@ -287,6 +307,27 @@ func resolveObs3(sat gnss.SatObs, code string) (val float64, lli byte, ss byte) 
 		}
 	}
 	return
+}
+
+// updateArcs updates the carrier phase arc state for a satellite after output.
+func (rw *Writer3) updateArcs(sat gnss.SatObs) {
+	for _, band := range []uint8{0, 1, 2} {
+		key := sat.SatID() + fmt.Sprintf("_%d", band)
+		sig := bestSignalForBand(sat.Signals, band)
+		if sig == nil {
+			if arc, ok := rw.arcs[key]; ok {
+				arc.present = false
+			}
+			continue
+		}
+		phaseEmitted := sig.CPValid && sig.CarrierPhase != 0 &&
+			!(sig.HalfCycle && !sig.SubHalfCyc)
+		if rw.arcs[key] == nil {
+			rw.arcs[key] = &phaseArc{}
+		}
+		rw.arcs[key].lockTime = sig.LockTimeSec
+		rw.arcs[key].present = phaseEmitted
+	}
 }
 
 // WriteRinex3 is a convenience function for complete file output.

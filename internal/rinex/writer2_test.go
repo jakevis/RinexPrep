@@ -282,7 +282,8 @@ func TestObservationFormatting(t *testing.T) {
 		},
 	}
 	sat := makeSatObs(1, signals)
-	result := formatObsLines(sat)
+	rw := NewWriter2(nil, gnss.Metadata{})
+	result := rw.formatObsLines(sat)
 
 	// C1 should be present with F14.3
 	if !strings.Contains(result, "22345678.123") {
@@ -319,7 +320,8 @@ func TestMissingObservationBlanks(t *testing.T) {
 		},
 	}
 	sat := makeSatObs(1, signals)
-	result := formatObsLines(sat)
+	rw := NewWriter2(nil, gnss.Metadata{})
+	result := rw.formatObsLines(sat)
 
 	lines := strings.Split(strings.TrimRight(result, "\n"), "\n")
 	// With 8 obs types: 5 on first line, 3 on second
@@ -376,7 +378,8 @@ func TestLLIFlagCycleSlip(t *testing.T) {
 		},
 	}
 	sat := makeSatObs(1, signals)
-	result := formatObsLines(sat)
+	rw := NewWriter2(nil, gnss.Metadata{})
+	result := rw.formatObsLines(sat)
 
 	// L1 is obs index 2, starts at char 32 on first line, 14 digits + LLI flag
 	firstLine := strings.Split(result, "\n")[0]
@@ -569,23 +572,121 @@ func TestHalfCycleExcluded(t *testing.T) {
 			LockTimeSec:  100,
 			PRValid:      true,
 			CPValid:      true,
-			HalfCycle:    true, // half-cycle ambiguity
+			HalfCycle:    true, // half-cycle ambiguity unresolved
 		},
 	}
 	sat := makeSatObs(1, signals)
-	result := formatObsLines(sat)
+	rw := NewWriter2(nil, gnss.Metadata{})
+	result := rw.formatObsLines(sat)
 
-	// C1 should still be present
+	// C1 should still be present (pseudorange unaffected by half-cycle)
 	if !strings.Contains(result, "22345678.123") {
 		t.Error("C1 should still be present even with half-cycle")
 	}
 
-	// L1 carrier phase should be present (half-cycle flag ignored, matching Emlid behavior)
+	// L1 carrier phase should be SUPPRESSED when half-cycle is unresolved
 	lines := strings.Split(strings.TrimRight(result, "\n"), "\n")
 	firstLine := lines[0]
 	// L1 is obs index 2, at positions 32-47
 	l1Field := firstLine[32:48]
-	if strings.TrimSpace(l1Field) == "" {
-		t.Error("L1 carrier phase should be present even with half-cycle")
+	if strings.TrimSpace(l1Field) != "" {
+		t.Errorf("L1 carrier phase should be suppressed with unresolved half-cycle, got %q", l1Field)
+	}
+}
+
+func TestHalfCycleSubtractedIncluded(t *testing.T) {
+	// When SubHalfCyc=true, the half-cycle has been corrected — phase should be emitted
+	signals := []gnss.Signal{
+		{
+			FreqBand:     0,
+			SigID:        0,
+			Pseudorange:  22345678.123,
+			CarrierPhase: 117456789.456,
+			Doppler:      -1234.567,
+			SNR:          42.0,
+			LockTimeSec:  100,
+			PRValid:      true,
+			CPValid:      true,
+			HalfCycle:    true,
+			SubHalfCyc:   true, // already corrected
+		},
+	}
+	sat := makeSatObs(1, signals)
+	rw := NewWriter2(nil, gnss.Metadata{})
+	result := rw.formatObsLines(sat)
+
+	if !strings.Contains(result, "117456789.456") {
+		t.Error("L1 carrier phase should be present when SubHalfCyc=true")
+	}
+}
+
+func TestLockTimeDecreaseLLI(t *testing.T) {
+	// First epoch: lock time = 100s
+	sig1 := []gnss.Signal{{
+		FreqBand: 0, SigID: 0,
+		Pseudorange: 22000000.0, CarrierPhase: 115000000.0, Doppler: -1234.5, SNR: 42.0,
+		LockTimeSec: 100, PRValid: true, CPValid: true,
+	}}
+	sat1 := makeSatObs(1, sig1)
+
+	rw := NewWriter2(nil, gnss.Metadata{})
+	rw.formatObsLines(sat1)
+	rw.updateArcs2(sat1)
+
+	// Second epoch: lock time = 15s (decreased → cycle slip)
+	sig2 := []gnss.Signal{{
+		FreqBand: 0, SigID: 0,
+		Pseudorange: 22000100.0, CarrierPhase: 115000500.0, Doppler: -1234.6, SNR: 43.0,
+		LockTimeSec: 15, PRValid: true, CPValid: true,
+	}}
+	sat2 := makeSatObs(1, sig2)
+	result := rw.formatObsLines(sat2)
+
+	firstLine := strings.Split(result, "\n")[0]
+	l1Field := firstLine[32:48]
+	lli := l1Field[14]
+	if lli != '1' {
+		t.Errorf("LLI should be 1 when lock time decreases, got %c (field: %q)", lli, l1Field)
+	}
+}
+
+func TestPhaseResumptionLLI(t *testing.T) {
+	rw := NewWriter2(nil, gnss.Metadata{})
+
+	// Epoch 1: phase present
+	sig1 := []gnss.Signal{{
+		FreqBand: 0, SigID: 0,
+		Pseudorange: 22000000.0, CarrierPhase: 115000000.0, Doppler: -1234.5, SNR: 42.0,
+		LockTimeSec: 100, PRValid: true, CPValid: true,
+	}}
+	sat1 := makeSatObs(1, sig1)
+	rw.formatObsLines(sat1)
+	rw.updateArcs2(sat1)
+
+	// Epoch 2: phase suppressed (half-cycle unresolved)
+	sig2 := []gnss.Signal{{
+		FreqBand: 0, SigID: 0,
+		Pseudorange: 22000100.0, CarrierPhase: 115000500.0, Doppler: -1234.6, SNR: 43.0,
+		LockTimeSec: 130, PRValid: true, CPValid: true,
+		HalfCycle: true,
+	}}
+	sat2 := makeSatObs(1, sig2)
+	rw.formatObsLines(sat2)
+	rw.updateArcs2(sat2)
+
+	// Epoch 3: half-cycle resolved, phase resumes — should have LLI=1
+	sig3 := []gnss.Signal{{
+		FreqBand: 0, SigID: 0,
+		Pseudorange: 22000200.0, CarrierPhase: 115001000.0, Doppler: -1234.7, SNR: 41.0,
+		LockTimeSec: 160, PRValid: true, CPValid: true,
+	}}
+	sat3 := makeSatObs(1, sig3)
+	result := rw.formatObsLines(sat3)
+
+	firstLine := strings.Split(result, "\n")[0]
+	l1Field := firstLine[32:48]
+	lli := l1Field[14]
+	if lli != '1' {
+		t.Errorf("LLI should be 1 when phase resumes after half-cycle gap, got %c (field: %q)", lli, l1Field)
 	}
 }

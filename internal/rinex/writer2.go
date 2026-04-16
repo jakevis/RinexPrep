@@ -18,11 +18,12 @@ var rinex2ObsTypes = []string{"C1", "C2", "L1", "L2", "D1", "D2", "S1", "S2"}
 type Writer2 struct {
 	w        io.Writer
 	metadata gnss.Metadata
+	arcs     map[string]*phaseArc // keyed by "G01_0" (satID_band)
 }
 
 // NewWriter2 creates a new RINEX 2.11 writer.
 func NewWriter2(w io.Writer, meta gnss.Metadata) *Writer2 {
-	return &Writer2{w: w, metadata: meta}
+	return &Writer2{w: w, metadata: meta, arcs: make(map[string]*phaseArc)}
 }
 
 // WriteHeader writes the RINEX 2.11 header block.
@@ -49,10 +50,11 @@ func (rw *Writer2) WriteEpoch(epoch gnss.Epoch) error {
 	}
 
 	for _, sat := range gpsOnly.Satellites {
-		obsLine := formatObsLines(sat)
+		obsLine := rw.formatObsLines(sat)
 		if _, err := fmt.Fprint(rw.w, obsLine); err != nil {
 			return err
 		}
+		rw.updateArcs2(sat)
 	}
 	return nil
 }
@@ -190,7 +192,7 @@ func formatEpochLine(epoch gnss.Epoch) string {
 
 // formatObsLines formats the observation data lines for one satellite.
 // Observables order: C1, C2, L1, L2, D1, D2, S1, S2 (8 types).
-func formatObsLines(sat gnss.SatObs) string {
+func (rw *Writer2) formatObsLines(sat gnss.SatObs) string {
 	l1 := bestSignalForBand(sat.Signals, 0)
 	l2 := bestSignalForBand(sat.Signals, 1)
 
@@ -211,19 +213,31 @@ func formatObsLines(sat gnss.SatObs) string {
 	if l2 != nil && l2.PRValid {
 		obs[1] = obsVal{l2.Pseudorange, true, 0, snrToSS(l2.SNR)}
 	}
-	// L1: carrier phase
-	if l1 != nil && l1.CPValid {
+	// L1: carrier phase — suppress when half-cycle ambiguity is unresolved
+	if l1 != nil && l1.CPValid && !(l1.HalfCycle && !l1.SubHalfCyc) {
 		lli := 0
+		key := sat.SatID() + "_0"
+		arc := rw.arcs[key]
 		if l1.LockTimeSec == 0 {
-			lli |= 1 // cycle slip
+			lli |= 1
+		} else if arc != nil && l1.LockTimeSec < arc.lockTime {
+			lli |= 1
+		} else if arc != nil && !arc.present {
+			lli |= 1
 		}
 		obs[2] = obsVal{l1.CarrierPhase, true, lli, snrToSS(l1.SNR)}
 	}
-	// L2: carrier phase
-	if l2 != nil && l2.CPValid {
+	// L2: carrier phase — suppress when half-cycle ambiguity is unresolved
+	if l2 != nil && l2.CPValid && !(l2.HalfCycle && !l2.SubHalfCyc) {
 		lli := 0
+		key := sat.SatID() + "_1"
+		arc := rw.arcs[key]
 		if l2.LockTimeSec == 0 {
-			lli |= 1 // cycle slip
+			lli |= 1
+		} else if arc != nil && l2.LockTimeSec < arc.lockTime {
+			lli |= 1
+		} else if arc != nil && !arc.present {
+			lli |= 1
 		}
 		obs[3] = obsVal{l2.CarrierPhase, true, lli, snrToSS(l2.SNR)}
 	}
@@ -271,6 +285,27 @@ func formatObsLines(sat gnss.SatObs) string {
 }
 
 // --- utility functions ---
+
+// updateArcs2 updates carrier phase arc state for a satellite after output.
+func (rw *Writer2) updateArcs2(sat gnss.SatObs) {
+	for _, band := range []uint8{0, 1} {
+		key := sat.SatID() + fmt.Sprintf("_%d", band)
+		sig := bestSignalForBand(sat.Signals, band)
+		if sig == nil {
+			if arc, ok := rw.arcs[key]; ok {
+				arc.present = false
+			}
+			continue
+		}
+		phaseEmitted := sig.CPValid && sig.CarrierPhase != 0 &&
+			!(sig.HalfCycle && !sig.SubHalfCyc)
+		if rw.arcs[key] == nil {
+			rw.arcs[key] = &phaseArc{}
+		}
+		rw.arcs[key].lockTime = sig.LockTimeSec
+		rw.arcs[key].present = phaseEmitted
+	}
+}
 
 // bestSignalForBand returns the best signal for a given frequency band.
 // For GPS L2 (band=1), prefer lower sigId (sigId=3 L2CL over sigId=4 L2CM).
