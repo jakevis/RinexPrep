@@ -56,18 +56,18 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find the RINEX 2.11 .obs file (OPUS prefers RINEX 2)
+	// Find the RINEX 3.x file first (OPUS accepts RINEX 3)
 	var rinexPath string
 	for _, f := range job.OutputFiles {
-		if filepath.Ext(f) == ".obs" {
+		if filepath.Ext(f) == ".rnx" {
 			rinexPath = filepath.Join(s.jobStore.dir, f)
 			break
 		}
 	}
 	if rinexPath == "" {
-		// Fall back to .rnx (RINEX 3)
+		// Fall back to RINEX 2.11
 		for _, f := range job.OutputFiles {
-			if filepath.Ext(f) == ".rnx" {
+			if filepath.Ext(f) == ".obs" {
 				rinexPath = filepath.Join(s.jobStore.dir, f)
 				break
 			}

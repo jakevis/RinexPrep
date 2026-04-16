@@ -303,30 +303,41 @@ func (s *Server) handleProcess(w http.ResponseWriter, r *http.Request) {
 	// Build output metadata with placeholder values.
 	meta := buildMetadata(processed, 30)
 
+	// Generate descriptive filename from session date/time
+	var fileBase string
+	if len(processed) > 0 {
+		y, mo, d, h, mi, _ := rinex.GNSSTimeToCalendar(processed[0].Time)
+		fileBase = fmt.Sprintf("rinexprep_%04d%02d%02d_%02d%02d", y, mo, d, h, mi)
+	} else {
+		fileBase = fmt.Sprintf("rinexprep_%s", time.Now().UTC().Format("20060102_1504"))
+	}
+
 	// Write output files.
 	jobDir := filepath.Join(s.jobStore.dir, job.ID)
 	var outputFiles []string
 
 	if job.Format == "rinex2" || job.Format == "both" {
-		outPath := filepath.Join(jobDir, "output.obs")
+		obsName := fileBase + ".obs"
+		outPath := filepath.Join(jobDir, obsName)
 		if err := writeRinex2File(outPath, meta, processed); err != nil {
 			job.Status = StatusFailed
 			job.Error = "rinex2 write error: " + err.Error()
 			jsonResponse(w, http.StatusInternalServerError, job)
 			return
 		}
-		outputFiles = append(outputFiles, filepath.Join(job.ID, "output.obs"))
+		outputFiles = append(outputFiles, filepath.Join(job.ID, obsName))
 	}
 
 	if job.Format == "rinex3" || job.Format == "both" {
-		outPath := filepath.Join(jobDir, "output.rnx")
+		rnxName := fileBase + ".rnx"
+		outPath := filepath.Join(jobDir, rnxName)
 		if err := writeRinex3File(outPath, meta, processed); err != nil {
 			job.Status = StatusFailed
 			job.Error = "rinex3 write error: " + err.Error()
 			jsonResponse(w, http.StatusInternalServerError, job)
 			return
 		}
-		outputFiles = append(outputFiles, filepath.Join(job.ID, "output.rnx"))
+		outputFiles = append(outputFiles, filepath.Join(job.ID, rnxName))
 	}
 
 	now := time.Now().UTC()
