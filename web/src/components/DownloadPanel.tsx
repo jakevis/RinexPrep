@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Download, CheckCircle2, Loader2, Send } from 'lucide-react'
+import AntennaSelect from './AntennaSelect'
 import * as api from '../api'
 
 interface DownloadPanelProps {
@@ -145,13 +146,7 @@ export default function DownloadPanel({
               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
                 Antenna Type (required)
               </label>
-              <input
-                type="text"
-                value={antennaType}
-                onChange={(e) => setAntennaType(e.target.value)}
-                placeholder="e.g., TRM57971.00     NONE"
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
+              <AntennaSelect value={antennaType} onChange={setAntennaType} />
             </div>
 
             <div>
