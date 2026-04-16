@@ -32,6 +32,7 @@ export default function DownloadPanel({
   const [antennaHeight, setAntennaHeight] = useState('')
   const [opusStatus, setOpusStatus] = useState<string | null>(null)
   const [opusError, setOpusError] = useState<string | null>(null)
+  const [opusDetails, setOpusDetails] = useState<Record<string, string> | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleOpusSubmit = async (mode: string) => {
@@ -50,10 +51,10 @@ export default function DownloadPanel({
         height: parseFloat(antennaHeight) || 0,
         mode,
       })
-      let msg = `Submitted to OPUS ${result.processor ?? mode}! Results will be emailed to ${email}.`
-      if (result.queue_position) msg += ` Queue position: #${result.queue_position}.`
-      if (result.rinex_file) msg += ` File: ${result.rinex_file}`
-      setOpusStatus(msg)
+      setOpusStatus('Upload successful! You will receive an email when processing is complete.')
+      if (result.details) {
+        setOpusDetails(result.details as Record<string, string>)
+      }
     } catch (err) {
       setOpusError(err instanceof Error ? err.message : 'Submission failed')
     } finally {
@@ -205,9 +206,21 @@ export default function DownloadPanel({
             </p>
 
             {opusStatus && (
-              <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/20 rounded-lg px-3 py-2">
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                {opusStatus}
+              <div className="bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800 p-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400 mb-2">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  {opusStatus}
+                </div>
+                {opusDetails && (
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mt-2">
+                    {Object.entries(opusDetails).map(([key, val]) => (
+                      <div key={key} className="contents">
+                        <span className="text-gray-500 dark:text-gray-400">{key.replace(/_/g, ' ')}</span>
+                        <span className="text-gray-800 dark:text-gray-200 font-mono">{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

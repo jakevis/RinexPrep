@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // OPUSRequest holds the parameters for an OPUS submission.
@@ -153,33 +152,41 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 			"message": "Your RINEX file has been submitted to OPUS. Results will be emailed to " + req.Email,
 		}
 
-		// Parse useful info from the redirect URL
+		// Parse all useful fields from the redirect URL
 		if loc := resp.Header.Get("Location"); loc != "" {
 			if u, err := url.Parse(loc); err == nil {
 				q := u.Query()
-				if v := q.Get("queue"); v != "" {
-					result["queue_position"] = v
-				}
-				if v := q.Get("processor"); v != "" {
-					result["processor"] = v
+				details := map[string]string{}
+				if v := q.Get("upload"); v != "" {
+					details["data_file"] = v
 				}
 				if v := q.Get("rnxf"); v != "" {
-					result["rinex_file"] = v
+					details["converted_to"] = v
 				}
-				if v := q.Get("seq"); v != "" && v != "" {
-					result["sequence"] = v
+				if v := q.Get("ant"); v != "" {
+					details["antenna"] = v
 				}
-			}
-		}
-
-		// If OPUS returned HTML body, try to extract any useful text
-		if len(body) > 0 {
-			bodyStr := string(body)
-			// Look for common confirmation patterns
-			if strings.Contains(bodyStr, "has been received") ||
-				strings.Contains(bodyStr, "queued") ||
-				strings.Contains(bodyStr, "processing") {
-				result["opus_confirmed"] = true
+				if v := q.Get("antheight"); v != "" {
+					details["antenna_height"] = v + " meters"
+				}
+				if v := q.Get("email"); v != "" {
+					details["email"] = v
+				}
+				if v := q.Get("processor"); v != "" {
+					details["processor"] = v
+					result["processor"] = v
+				}
+				if v := q.Get("queue"); v != "" {
+					details["queue_position"] = v
+					result["queue_position"] = v
+				}
+				if v := q.Get("sp"); v != "" && v != "AUTO" {
+					details["state_plane_zone"] = v
+				}
+				if v := q.Get("bigout"); v != "" {
+					details["solution_format"] = map[string]string{"NO": "Standard", "YES": "Extended"}[v]
+				}
+				result["details"] = details
 			}
 		}
 

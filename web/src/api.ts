@@ -81,7 +81,7 @@ export async function downloadResult(jobId: string, format?: string): Promise<Bl
 export async function submitToOPUS(
   jobId: string,
   data: { email: string; antenna_type: string; height: number; mode: string },
-): Promise<{ status: string; message: string; queue_position?: string; processor?: string; rinex_file?: string }> {
+): Promise<{ status: string; message: string; queue_position?: string; processor?: string; rinex_file?: string; details?: Record<string, string> }> {
   const res = await fetch(`${API_BASE}/jobs/${jobId}/opus`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
