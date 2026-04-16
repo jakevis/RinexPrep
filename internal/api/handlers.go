@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -528,6 +529,86 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 					SNR:       float64(sat.CNO),
 				})
 			}
+		}
+	}
+	// Fallback: generate pseudo-positions from RAWX data when no NAV-SAT available.
+	// Distribute satellites around the plot by constellation and PRN for visual representation.
+	if len(skyview) == 0 && len(epochs) > 0 {
+		type satKey struct {
+			system string
+			prn    int
+		}
+		satSNR := make(map[satKey][]float64)
+
+		for _, ep := range epochs {
+			for _, sat := range ep.Satellites {
+				key := satKey{system: sat.Constellation.String(), prn: int(sat.PRN)}
+				bestSNR := 0.0
+				for _, sig := range sat.Signals {
+					if sig.SNR > bestSNR {
+						bestSNR = sig.SNR
+					}
+				}
+				if bestSNR > 0 {
+					satSNR[key] = append(satSNR[key], bestSNR)
+				}
+			}
+		}
+
+		constellationBaseAz := map[string]float64{
+			"G": 0,
+			"R": 90,
+			"E": 180,
+			"C": 270,
+			"S": 45,
+			"J": 315,
+		}
+
+		constellationCounts := make(map[string]int)
+		constellationIdx := make(map[string]int)
+		for key := range satSNR {
+			constellationCounts[key.system]++
+		}
+
+		skyview = make([]SatPosition, 0, len(satSNR))
+		for key, snrs := range satSNR {
+			avgSNR := 0.0
+			for _, s := range snrs {
+				avgSNR += s
+			}
+			avgSNR /= float64(len(snrs))
+
+			baseAz, ok := constellationBaseAz[key.system]
+			if !ok {
+				baseAz = 0
+			}
+
+			idx := constellationIdx[key.system]
+			count := constellationCounts[key.system]
+			spread := 70.0
+			var azOffset float64
+			if count > 1 {
+				azOffset = -spread/2 + spread*float64(idx)/float64(count-1)
+			}
+			azimuth := math.Mod(baseAz+azOffset+360, 360)
+
+			elevation := 15.0 + (avgSNR-20.0)/(50.0-20.0)*60.0
+			if elevation < 10 {
+				elevation = 10
+			}
+			if elevation > 80 {
+				elevation = 80
+			}
+
+			skyview = append(skyview, SatPosition{
+				System:    key.system,
+				PRN:       key.prn,
+				Azimuth:   azimuth,
+				Elevation: elevation,
+				SNR:       avgSNR,
+			})
+
+			constellationIdx[key.system] = idx + 1
 		}
 	}
 	if skyview == nil {

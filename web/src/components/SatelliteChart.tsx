@@ -87,16 +87,16 @@ export default function SatelliteChart({
             <ReferenceArea
               x1={dataStart}
               x2={trimStart}
-              fill="#ef4444"
-              fillOpacity={0.08}
+              fill="#6b7280"
+              fillOpacity={0.12}
             />
           )}
           {trimEnd !== undefined && trimEnd < dataEnd && (
             <ReferenceArea
               x1={trimEnd}
               x2={dataEnd}
-              fill="#ef4444"
-              fillOpacity={0.08}
+              fill="#6b7280"
+              fillOpacity={0.12}
             />
           )}
 
