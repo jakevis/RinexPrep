@@ -173,6 +173,7 @@ function App() {
                 </div>
               </div>
               <div className="flex flex-col gap-4">
+                <QCSummary qc={preview.qc} />
                 <TrimSliders
                   totalDuration={preview.total_duration_sec}
                   trimStart={trimStart}
@@ -180,11 +181,11 @@ function App() {
                   autoTrim={preview.auto_trim}
                   onTrimChange={handleTrimChange}
                 />
-                <QCSummary qc={preview.qc} />
               </div>
               <div className="flex">
                 <div className="w-full">
                   <DownloadPanel
+                    jobId={jobId}
                     isReady={appState === 'ready'}
                     onProcess={handleProcess}
                     onDownload={handleDownload}

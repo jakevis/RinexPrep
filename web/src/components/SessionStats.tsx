@@ -217,6 +217,55 @@ export default function SessionStats({ preview, trimStart, trimEnd }: SessionSta
           color={durationColor(trimmedDuration)}
           tooltip="Effective observation duration after trimming. This is the length of data that will be written to the RINEX file."
         />
+        <StatItem
+          icon={<Satellite className={iconSize} />}
+          label="Satellite Passes"
+          value={`${preview.sat_passes ?? 0} unique`}
+          color="neutral"
+          tooltip="Total number of unique GPS satellites observed during the session."
+        />
+        <StatItem
+          icon={<Signal className={iconSize} />}
+          label="L1 Signals"
+          value={`${preview.l1_count ?? 0} sats`}
+          color="neutral"
+          tooltip="Number of unique satellites with L1 frequency observations."
+        />
+        <StatItem
+          icon={<Signal className={iconSize} />}
+          label="L2 Signals"
+          value={`${preview.l2_count ?? 0} sats`}
+          color={l2Color((preview.l2_count ?? 0) / Math.max(preview.l1_count ?? 1, 1) * 100)}
+          tooltip="Number of unique satellites with L2 frequency observations. Dual-frequency (L1+L2) is required by OPUS."
+        />
+        <StatItem
+          icon={<Signal className={iconSize} />}
+          label="Dual Frequency"
+          value={`${preview.dual_freq_count ?? 0} sats`}
+          color={gpsSatsColor(preview.dual_freq_count ?? 0)}
+          tooltip="Satellites with both L1 and L2 signals — essential for OPUS processing."
+        />
+        <StatItem
+          icon={<Signal className={iconSize} />}
+          label="L1 Mean SNR"
+          value={preview.mean_snr_l1 ? `${preview.mean_snr_l1.toFixed(1)} dB-Hz` : '—'}
+          color={snrColor(preview.mean_snr_l1 ?? 0)}
+          tooltip="Average signal-to-noise ratio on L1 frequency across all observations."
+        />
+        <StatItem
+          icon={<Signal className={iconSize} />}
+          label="L2 Mean SNR"
+          value={preview.mean_snr_l2 ? `${preview.mean_snr_l2.toFixed(1)} dB-Hz` : '—'}
+          color={snrColor(preview.mean_snr_l2 ?? 0)}
+          tooltip="Average signal-to-noise ratio on L2 frequency. Lower than L1 is normal."
+        />
+        <StatItem
+          icon={<Clock className={iconSize} />}
+          label="Max Gap"
+          value={preview.max_gap_sec ? `${preview.max_gap_sec.toFixed(1)}s` : '—'}
+          color={preview.max_gap_sec && preview.max_gap_sec > 60 ? 'red' : preview.max_gap_sec && preview.max_gap_sec > 10 ? 'amber' : 'green'}
+          tooltip="Largest time gap between consecutive observation epochs. Gaps >60s may affect OPUS processing quality."
+        />
       </div>
     </div>
   )

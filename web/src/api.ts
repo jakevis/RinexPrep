@@ -73,3 +73,19 @@ export async function downloadResult(jobId: string): Promise<Blob> {
   if (!res.ok) throw new Error(`Failed to download: ${res.statusText}`)
   return res.blob()
 }
+
+export async function submitToOPUS(
+  jobId: string,
+  data: { email: string; antenna_type: string; height: number; mode: string },
+): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/opus`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.message || 'OPUS submission failed')
+  }
+  return res.json()
+}

@@ -47,4 +47,12 @@ export interface PreviewData {
   total_duration_sec: number
   start_time_utc?: string
   end_time_utc?: string
+  sat_passes?: number
+  l1_count?: number
+  l2_count?: number
+  l5_count?: number
+  dual_freq_count?: number
+  max_gap_sec?: number
+  mean_snr_l1?: number
+  mean_snr_l2?: number
 }

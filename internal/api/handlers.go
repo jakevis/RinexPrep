@@ -763,15 +763,80 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 		skyview = []SatPosition{}
 	}
 
-	return &PreviewData{
-		Epochs:       downsampleEpochs(summaries, 1000),
-		Skyview:      skyview,
-		AutoTrim:     trimBounds,
-		QC:           qc,
-		TotalSecs:    totalSecs,
-		StartTimeUTC: startTimeUTC,
-		EndTimeUTC:   endTimeUTC,
+	// Count unique satellite passes and frequency stats.
+	type satKey struct{ sys string; prn int }
+	uniqueSats := make(map[satKey]bool)
+	l1Sats := make(map[satKey]bool)
+	l2Sats := make(map[satKey]bool)
+	l5Sats := make(map[satKey]bool)
+	var l1SNRTotal, l2SNRTotal float64
+	var l1SNRCount, l2SNRCount int
+
+	for _, ep := range epochs {
+		for _, sat := range ep.Satellites {
+			sk := satKey{sat.Constellation.String(), int(sat.PRN)}
+			uniqueSats[sk] = true
+			for _, sig := range sat.Signals {
+				switch sig.FreqBand {
+				case 0:
+					l1Sats[sk] = true
+					if sig.SNR > 0 {
+						l1SNRTotal += sig.SNR
+						l1SNRCount++
+					}
+				case 1:
+					l2Sats[sk] = true
+					if sig.SNR > 0 {
+						l2SNRTotal += sig.SNR
+						l2SNRCount++
+					}
+				case 2:
+					l5Sats[sk] = true
+				}
+			}
+		}
 	}
+
+	// Count dual-frequency satellites.
+	dualFreq := 0
+	for sk := range l1Sats {
+		if l2Sats[sk] {
+			dualFreq++
+		}
+	}
+
+	// Max gap between epochs.
+	maxGap := 0.0
+	for i := 1; i < len(epochs); i++ {
+		gap := float64(epochs[i].Time.UnixNanos()-epochs[i-1].Time.UnixNanos()) / 1e9
+		if gap > maxGap {
+			maxGap = gap
+		}
+	}
+
+	preview := &PreviewData{
+		Epochs:        downsampleEpochs(summaries, 1000),
+		Skyview:       skyview,
+		AutoTrim:      trimBounds,
+		QC:            qc,
+		TotalSecs:     totalSecs,
+		StartTimeUTC:  startTimeUTC,
+		EndTimeUTC:    endTimeUTC,
+		SatPasses:     len(uniqueSats),
+		L1Count:       len(l1Sats),
+		L2Count:       len(l2Sats),
+		L5Count:       len(l5Sats),
+		DualFreqCount: dualFreq,
+		MaxGap:        maxGap,
+	}
+	if l1SNRCount > 0 {
+		preview.MeanSNRL1 = l1SNRTotal / float64(l1SNRCount)
+	}
+	if l2SNRCount > 0 {
+		preview.MeanSNRL2 = l2SNRTotal / float64(l2SNRCount)
+	}
+
+	return preview
 }
 
 // downsampleEpochs reduces epoch summaries to at most maxPoints for chart display.

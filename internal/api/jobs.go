@@ -50,6 +50,14 @@ type PreviewData struct {
 	TotalSecs    float64        `json:"total_duration_sec"`
 	StartTimeUTC string         `json:"start_time_utc"` // ISO 8601 format
 	EndTimeUTC   string         `json:"end_time_utc"`   // ISO 8601 format
+	SatPasses    int            `json:"sat_passes"`      // total unique satellite passes
+	L1Count      int            `json:"l1_count"`        // satellites with L1
+	L2Count      int            `json:"l2_count"`        // satellites with L2
+	L5Count      int            `json:"l5_count"`        // satellites with L5
+	DualFreqCount int           `json:"dual_freq_count"` // satellites with L1+L2
+	MaxGap       float64        `json:"max_gap_sec"`     // largest gap between epochs in seconds
+	MeanSNRL1    float64        `json:"mean_snr_l1"`     // mean SNR on L1
+	MeanSNRL2    float64        `json:"mean_snr_l2"`     // mean SNR on L2
 }
 
 // EpochSummary is a reduced view of one observation epoch.
