@@ -27,6 +27,9 @@ Thumbs.db
 /dist/
 /tmp/
 
+# Runtime job data (uploaded files, processed output)
+/data/
+
 # Data (don't commit raw GNSS data)
 testdata/*.ubx
 testdata/*.obs
