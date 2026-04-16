@@ -14,6 +14,8 @@ type JobStatus string
 
 const (
 	StatusUploaded   JobStatus = "uploaded"
+	StatusParsing    JobStatus = "parsing"
+	StatusPreview    JobStatus = "preview"
 	StatusProcessing JobStatus = "processing"
 	StatusReady      JobStatus = "ready"
 	StatusFailed     JobStatus = "failed"
@@ -26,6 +28,7 @@ type Job struct {
 
 	ID          string     `json:"id"`
 	Status      JobStatus  `json:"status"`
+	Progress    string     `json:"progress,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 	InputFile   string     `json:"input_file"`

@@ -51,7 +51,7 @@ export async function submitTrim(
   const res = await fetch(`${API_BASE}/jobs/${jobId}/trim`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ startSec: start, endSec: end }),
+    body: JSON.stringify({ start_sec: start, end_sec: end }),
   })
   if (!res.ok) throw new Error(`Failed to submit trim: ${res.statusText}`)
 }

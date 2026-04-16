@@ -107,7 +107,7 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
             {/* Satellite dots */}
             {satellites.map((sat) => {
               const { x, y } = polarToXY(sat.azimuth, sat.elevation)
-              const color = CONSTELLATION_COLORS[sat.constellation] ?? '#9ca3af'
+              const color = CONSTELLATION_COLORS[sat.system] ?? '#9ca3af'
               return (
                 <g key={sat.prn}>
                   <circle cx={x} cy={y} r={5} fill={color} opacity={0.9} />

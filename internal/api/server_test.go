@@ -64,7 +64,7 @@ func TestUpload(t *testing.T) {
 	_, ts := newTestServer(t)
 	result := uploadFile(t, ts, "test.ubx", []byte("fake ubx data"))
 
-	id, ok := result["id"]
+	id, ok := result["jobId"]
 	if !ok || id == "" {
 		t.Fatal("upload response missing 'id'")
 	}
@@ -73,7 +73,7 @@ func TestUpload(t *testing.T) {
 func TestUploadCreatesFile(t *testing.T) {
 	s, ts := newTestServer(t)
 	result := uploadFile(t, ts, "test.ubx", []byte("fake ubx data"))
-	id := result["id"]
+	id := result["jobId"]
 
 	path := filepath.Join(s.jobStore.dir, id, "input.ubx")
 	data, err := os.ReadFile(path)
@@ -88,7 +88,7 @@ func TestUploadCreatesFile(t *testing.T) {
 func TestStatusAfterUpload(t *testing.T) {
 	_, ts := newTestServer(t)
 	result := uploadFile(t, ts, "test.ubx", []byte("data"))
-	id := result["id"]
+	id := result["jobId"]
 
 	resp, err := http.Get(ts.URL + "/api/v1/jobs/" + id + "/status")
 	if err != nil {
@@ -104,8 +104,16 @@ func TestStatusAfterUpload(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&job); err != nil {
 		t.Fatal(err)
 	}
-	if job.Status != StatusUploaded {
-		t.Fatalf("expected status %q, got %q", StatusUploaded, job.Status)
+	// After upload, the background goroutine may have already progressed
+	// the status beyond "uploaded" (parsing, preview, or failed for invalid data).
+	validStatuses := map[JobStatus]bool{
+		StatusUploaded: true,
+		StatusParsing:  true,
+		StatusPreview:  true,
+		StatusFailed:   true,
+	}
+	if !validStatuses[job.Status] {
+		t.Fatalf("expected a valid post-upload status, got %q", job.Status)
 	}
 	if job.ID != id {
 		t.Fatalf("expected id %q, got %q", id, job.ID)
@@ -128,7 +136,7 @@ func TestStatusNotFound(t *testing.T) {
 func TestDelete(t *testing.T) {
 	_, ts := newTestServer(t)
 	result := uploadFile(t, ts, "test.ubx", []byte("data"))
-	id := result["id"]
+	id := result["jobId"]
 
 	req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/jobs/"+id, nil)
 	resp, err := http.DefaultClient.Do(req)
@@ -243,7 +251,7 @@ func TestFrontendPlaceholder(t *testing.T) {
 func TestPreview(t *testing.T) {
 	_, ts := newTestServer(t)
 	result := uploadFile(t, ts, "test.ubx", []byte("data"))
-	id := result["id"]
+	id := result["jobId"]
 
 	resp, err := http.Get(ts.URL + "/api/v1/jobs/" + id + "/preview")
 	if err != nil {
@@ -269,7 +277,7 @@ func TestPreview(t *testing.T) {
 func TestTrim(t *testing.T) {
 	_, ts := newTestServer(t)
 	result := uploadFile(t, ts, "test.ubx", []byte("data"))
-	id := result["id"]
+	id := result["jobId"]
 
 	body := `{"start_sec": 5.0, "end_sec": 55.0}`
 	resp, err := http.Post(ts.URL+"/api/v1/jobs/"+id+"/trim", "application/json", bytes.NewBufferString(body))
@@ -299,7 +307,7 @@ func TestTrim(t *testing.T) {
 func TestProcess(t *testing.T) {
 	_, ts := newTestServer(t)
 	result := uploadFile(t, ts, "test.ubx", []byte("data"))
-	id := result["id"]
+	id := result["jobId"]
 
 	body := `{"format": "rinex3"}`
 	resp, err := http.Post(ts.URL+"/api/v1/jobs/"+id+"/process", "application/json", bytes.NewBufferString(body))
@@ -326,7 +334,7 @@ func TestProcess(t *testing.T) {
 func TestProcessInvalidFormat(t *testing.T) {
 	_, ts := newTestServer(t)
 	result := uploadFile(t, ts, "test.ubx", []byte("data"))
-	id := result["id"]
+	id := result["jobId"]
 
 	body := `{"format": "invalid"}`
 	resp, err := http.Post(ts.URL+"/api/v1/jobs/"+id+"/process", "application/json", bytes.NewBufferString(body))

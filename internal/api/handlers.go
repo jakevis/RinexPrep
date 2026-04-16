@@ -77,17 +77,24 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// Kick off background parsing to generate preview data.
 	go s.parseAndPreview(job)
 
-	jsonResponse(w, http.StatusOK, map[string]string{"id": job.ID})
+	jsonResponse(w, http.StatusOK, map[string]string{"jobId": job.ID})
 }
 
 // parseAndPreview parses the UBX file and populates the job's preview data.
 func (s *Server) parseAndPreview(job *Job) {
 	job.mu.Lock()
 	inputFile := job.InputFile
+	job.Status = StatusParsing
+	job.Progress = "Parsing UBX binary data..."
 	job.mu.Unlock()
 
 	f, err := os.Open(inputFile)
 	if err != nil {
+		job.mu.Lock()
+		job.Status = StatusFailed
+		job.Error = "failed to open input: " + err.Error()
+		job.Progress = ""
+		job.mu.Unlock()
 		log.Printf("parse error for job %s: %v", job.ID, err)
 		return
 	}
@@ -95,16 +102,32 @@ func (s *Server) parseAndPreview(job *Job) {
 
 	ptrs, _, err := ubx.Parse(f)
 	if err != nil {
+		job.mu.Lock()
+		job.Status = StatusFailed
+		job.Error = "parse error: " + err.Error()
+		job.Progress = ""
+		job.mu.Unlock()
 		log.Printf("parse error for job %s: %v", job.ID, err)
 		return
 	}
 
+	job.mu.Lock()
+	job.Progress = "Analyzing satellite visibility..."
+	job.mu.Unlock()
+
 	epochs := derefEpochs(ptrs)
+
+	job.mu.Lock()
+	job.Progress = "Computing quality metrics..."
+	job.mu.Unlock()
+
 	preview := generatePreview(epochs)
 
 	job.mu.Lock()
 	job.epochs = epochs
 	job.Preview = preview
+	job.Status = StatusPreview
+	job.Progress = "Preview ready"
 	job.mu.Unlock()
 }
 

@@ -19,6 +19,7 @@ function App() {
   const [trimEnd, setTrimEnd] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [progressMessage, setProgressMessage] = useState<string | null>(null)
 
   const handleFileSelected = useCallback(async (file: File) => {
     setError(null)
@@ -35,21 +36,27 @@ function App() {
       const pollInterval = setInterval(async () => {
         try {
           const status = await api.getJobStatus(newJobId)
-          if (status.state === 'preview') {
+          if (status.progress) {
+            setProgressMessage(status.progress)
+          }
+          if (status.status === 'preview') {
             clearInterval(pollInterval)
             const previewData = await api.getPreview(newJobId)
             setPreview(previewData)
-            setTrimStart(previewData.autoTrim.startSec)
-            setTrimEnd(previewData.autoTrim.endSec)
+            setTrimStart(previewData.auto_trim.start_sec)
+            setTrimEnd(previewData.auto_trim.end_sec)
+            setProgressMessage(null)
             setAppState('preview')
-          } else if (status.error) {
+          } else if (status.status === 'failed') {
             clearInterval(pollInterval)
-            setError(status.error)
+            setError(status.error ?? 'Processing failed')
+            setProgressMessage(null)
             setAppState('idle')
           }
         } catch {
           clearInterval(pollInterval)
           setError('Lost connection to server')
+          setProgressMessage(null)
           setAppState('idle')
         }
       }, 1000)
@@ -122,7 +129,7 @@ function App() {
           <div className="flex flex-col items-center py-12 text-gray-500 dark:text-gray-400">
             <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-3" />
             <p className="font-medium">Processing your file…</p>
-            <p className="text-sm">Parsing UBX data and analyzing satellites</p>
+            <p className="text-sm">{progressMessage ?? 'Parsing UBX data and analyzing satellites'}</p>
           </div>
         )}
 
@@ -135,7 +142,7 @@ function App() {
                 <SatelliteChart
                   epochs={preview.epochs}
                   trimRange={{ start: trimStart, end: trimEnd }}
-                  autoTrim={preview.autoTrim}
+                  autoTrim={preview.auto_trim}
                 />
               </div>
               <div>
@@ -147,10 +154,10 @@ function App() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div>
                 <TrimSliders
-                  totalDuration={preview.totalDuration}
+                  totalDuration={preview.total_duration_sec}
                   trimStart={trimStart}
                   trimEnd={trimEnd}
-                  autoTrim={preview.autoTrim}
+                  autoTrim={preview.auto_trim}
                   onTrimChange={handleTrimChange}
                 />
               </div>

@@ -5,9 +5,9 @@ interface QCSummaryProps {
   qc: QCSummaryType | null
 }
 
-function formatDuration(sec: number): string {
-  const h = Math.floor(sec / 3600)
-  const m = Math.floor((sec % 3600) / 60)
+function formatDuration(hours: number): string {
+  const h = Math.floor(hours)
+  const m = Math.floor((hours - h) * 60)
   if (h > 0) return `${h}h ${m}m`
   return `${m}m`
 }
@@ -40,7 +40,8 @@ export default function QCSummary({ qc }: QCSummaryProps) {
     )
   }
 
-  const passed = qc.failures.length === 0
+  const passed = !qc.failures || qc.failures.length === 0
+  const displayScore = Math.round(qc.score * 100)
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -61,12 +62,12 @@ export default function QCSummary({ qc }: QCSummaryProps) {
       </div>
 
       {/* OPUS Score */}
-      <div className={`rounded-lg border p-4 mb-4 ${scoreBg(qc.opusScore)}`}>
+      <div className={`rounded-lg border p-4 mb-4 ${scoreBg(displayScore)}`}>
         <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
           OPUS Readiness Score
         </div>
-        <div className={`text-3xl font-bold ${scoreColor(qc.opusScore)}`}>
-          {qc.opusScore}
+        <div className={`text-3xl font-bold ${scoreColor(displayScore)}`}>
+          {displayScore}
           <span className="text-base font-normal text-gray-500 dark:text-gray-400">
             /100
           </span>
@@ -78,19 +79,19 @@ export default function QCSummary({ qc }: QCSummaryProps) {
         <div className="text-center">
           <div className="text-xs text-gray-500 dark:text-gray-400">Duration</div>
           <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-            {formatDuration(qc.duration)}
+            {formatDuration(qc.duration_hours)}
           </div>
         </div>
         <div className="text-center">
           <div className="text-xs text-gray-500 dark:text-gray-400">Satellites</div>
           <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-            {qc.satelliteCount}
+            {qc.gps_sats_mean.toFixed(1)}
           </div>
         </div>
         <div className="text-center">
           <div className="text-xs text-gray-500 dark:text-gray-400">L2 Coverage</div>
           <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-            {qc.l2Coverage}%
+            {qc.l2_coverage_pct.toFixed(1)}%
           </div>
         </div>
       </div>
@@ -111,7 +112,7 @@ export default function QCSummary({ qc }: QCSummaryProps) {
       )}
 
       {/* Failures */}
-      {qc.failures.length > 0 && (
+      {qc.failures && qc.failures.length > 0 && (
         <div className="space-y-1.5">
           {qc.failures.map((f, i) => (
             <div

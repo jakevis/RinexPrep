@@ -47,13 +47,13 @@ export default function SatelliteChart({
 
   const chartData = epochs.map((e) => ({
     ...e,
-    timeLabel: formatTime(e.time),
+    timeLabel: formatTime(e.time_sec),
   }))
 
-  const trimStart = trimRange?.start ?? autoTrim?.startSec
-  const trimEnd = trimRange?.end ?? autoTrim?.endSec
-  const dataStart = epochs[0].time
-  const dataEnd = epochs[epochs.length - 1].time
+  const trimStart = trimRange?.start ?? autoTrim?.start_sec
+  const trimEnd = trimRange?.end ?? autoTrim?.end_sec
+  const dataStart = epochs[0].time_sec
+  const dataEnd = epochs[epochs.length - 1].time_sec
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -65,7 +65,7 @@ export default function SatelliteChart({
         <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
           <XAxis
-            dataKey="time"
+            dataKey="time_sec"
             tickFormatter={formatTime}
             stroke="#9ca3af"
             fontSize={11}
@@ -100,11 +100,8 @@ export default function SatelliteChart({
             />
           )}
 
-          <Line type="monotone" dataKey="gps" stroke="#3b82f6" name="GPS" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="glonass" stroke="#ef4444" name="GLONASS" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="galileo" stroke="#22c55e" name="Galileo" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="beidou" stroke="#f97316" name="BeiDou" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="total" stroke="#a855f7" name="Total" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+          <Line type="monotone" dataKey="gps_sats" stroke="#3b82f6" name="GPS" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="total_sats" stroke="#a855f7" name="Total" strokeWidth={2} dot={false} strokeDasharray="5 5" />
         </LineChart>
       </ResponsiveContainer>
     </div>

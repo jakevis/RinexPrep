@@ -1,46 +1,46 @@
 export type AppState = 'idle' | 'uploading' | 'processing' | 'preview' | 'ready'
 
 export interface JobStatus {
-  jobId: string
-  state: AppState
-  progress: number
+  id: string
+  status: string
+  progress?: string
   error?: string
 }
 
 export interface EpochSummary {
-  time: number
-  gps: number
-  glonass: number
-  galileo: number
-  beidou: number
-  total: number
+  time_sec: number
+  gps_sats: number
+  total_sats: number
+  avg_snr: number
 }
 
 export interface SatPosition {
-  prn: string
-  constellation: 'GPS' | 'GLONASS' | 'Galileo' | 'BeiDou'
+  system: string
+  prn: number
   azimuth: number
   elevation: number
+  snr: number
 }
 
 export interface QCSummary {
-  opusScore: number
-  duration: number
-  satelliteCount: number
-  l2Coverage: number
+  opus_ready: boolean
+  score: number
+  duration_hours: number
+  gps_sats_mean: number
+  l2_coverage_pct: number
   warnings: string[]
-  failures: string[]
+  failures?: string[]
 }
 
 export interface AutoTrim {
-  startSec: number
-  endSec: number
+  start_sec: number
+  end_sec: number
 }
 
 export interface PreviewData {
   epochs: EpochSummary[]
   skyview: SatPosition[]
-  autoTrim: AutoTrim
+  auto_trim: AutoTrim
   qc: QCSummary
-  totalDuration: number
+  total_duration_sec: number
 }

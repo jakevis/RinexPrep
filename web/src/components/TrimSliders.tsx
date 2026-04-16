@@ -25,12 +25,12 @@ export default function TrimSliders({
 }: TrimSlidersProps) {
   const isAutoTrimmed =
     autoTrim &&
-    trimStart === autoTrim.startSec &&
-    trimEnd === autoTrim.endSec
+    trimStart === autoTrim.start_sec &&
+    trimEnd === autoTrim.end_sec
 
   const handleResetToAuto = () => {
     if (autoTrim) {
-      onTrimChange(autoTrim.startSec, autoTrim.endSec)
+      onTrimChange(autoTrim.start_sec, autoTrim.end_sec)
     }
   }
 
