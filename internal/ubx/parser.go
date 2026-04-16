@@ -14,9 +14,11 @@ type ParseStats struct {
 	TotalMessages  int
 	RawxMessages   int
 	NavSatMessages int
+	SfrbxMessages  int
 	SkippedBytes   int64
 	ChecksumErrors int
 	NavSatData     []*NavSatEpoch
+	Ephemerides    map[uint8]*GPSEphemeris // keyed by PRN
 }
 
 // Parse reads a UBX binary stream from r and returns decoded GNSS epochs.
@@ -109,6 +111,23 @@ func Parse(r io.Reader) ([]*gnss.Epoch, *ParseStats, error) {
 			navSat, err := decodeNavSat(payload)
 			if err == nil {
 				stats.NavSatData = append(stats.NavSatData, navSat)
+			}
+		}
+
+		if class == ClassRXM && id == IDSfrbx {
+			stats.SfrbxMessages++
+			sfrbx, err := decodeSfrbx(payload)
+			if err == nil && sfrbx.GnssID == 0 { // GPS only
+				if stats.Ephemerides == nil {
+					stats.Ephemerides = make(map[uint8]*GPSEphemeris)
+				}
+				prn := sfrbx.SvID
+				ephem, exists := stats.Ephemerides[prn]
+				if !exists {
+					ephem = &GPSEphemeris{PRN: prn}
+					stats.Ephemerides[prn] = ephem
+				}
+				ParseGPSSubframe(sfrbx, ephem)
 			}
 		}
 	}

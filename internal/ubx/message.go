@@ -9,6 +9,9 @@ const (
 	ClassRXM  byte = 0x02
 	IDRawx    byte = 0x15
 
+	// RXM-SFRBX message ID (class is ClassRXM).
+	IDSfrbx   byte = 0x13
+
 	// NAV-SAT message class and ID.
 	ClassNAV  byte = 0x01
 	IDNavSat  byte = 0x35
