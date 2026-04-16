@@ -75,8 +75,8 @@ func TestWriteHeader(t *testing.T) {
 	}
 
 	// Check RINEX VERSION / TYPE
-	if !strings.Contains(lines[0], "2.11") {
-		t.Error("first line missing version 2.11")
+	if !strings.Contains(lines[0], "2.12") {
+		t.Error("first line missing version 2.12")
 	}
 	if !strings.Contains(lines[0], "RINEX VERSION / TYPE") {
 		t.Error("first line missing RINEX VERSION / TYPE label")

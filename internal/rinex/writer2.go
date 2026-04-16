@@ -217,8 +217,9 @@ func formatObsLines(sat gnss.SatObs) string {
 		if l1.LockTimeSec == 0 {
 			lli |= 1 // cycle slip
 		}
-		if l1.HalfCycle {
-			lli |= 4 // half-cycle ambiguity (bit 2)
+		// Only flag half-cycle if genuinely unresolved (HalfCycle set but NOT subtracted)
+		if l1.HalfCycle && !l1.SubHalfCyc {
+			lli |= 4
 		}
 		obs[2] = obsVal{l1.CarrierPhase, true, lli, snrToSS(l1.SNR)}
 	}
@@ -228,8 +229,8 @@ func formatObsLines(sat gnss.SatObs) string {
 		if l2.LockTimeSec == 0 {
 			lli |= 1 // cycle slip
 		}
-		if l2.HalfCycle {
-			lli |= 4 // half-cycle ambiguity (bit 2)
+		if l2.HalfCycle && !l2.SubHalfCyc {
+			lli |= 4
 		}
 		obs[3] = obsVal{l2.CarrierPhase, true, lli, snrToSS(l2.SNR)}
 	}

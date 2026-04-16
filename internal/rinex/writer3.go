@@ -275,8 +275,9 @@ func resolveObs3(sat gnss.SatObs, code string) (val float64, lli byte, ss byte) 
 			if sig.LockTimeSec == 0 {
 				lli = '1' // cycle slip
 			}
-			if sig.HalfCycle {
-				lli = '4' // half-cycle ambiguity
+			// Only flag half-cycle if genuinely unresolved
+			if sig.HalfCycle && !sig.SubHalfCyc {
+				lli = '4'
 			}
 		}
 	case 'D':
