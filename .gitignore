@@ -39,3 +39,18 @@ docker-compose.override.yml
 # Environment
 .env
 .env.local
+.env.*.local
+
+# SSH signing keys (persist via devcontainer mount, never commit)
+.ssh/
+
+# Copilot session persistence (mounted into container, never commit)
+.copilot-persist/
+
+# Secrets and credentials
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+token.json

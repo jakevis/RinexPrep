@@ -49,6 +49,15 @@ UBX Binary → Parser → GNSS Model → Pipeline → RINEX Writer
 
 See `docs/PLAN.md` for full design documentation.
 
+## Contributing
+
+Contributions are welcome! Please open an issue to discuss proposed changes before submitting a pull request.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Commit your changes
+4. Push to your branch and open a pull request
+
 ## License
 
-TBD
+This project is licensed under the [MIT License](LICENSE) — free to use with attribution.

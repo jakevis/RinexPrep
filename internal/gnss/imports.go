@@ -1,3 +1,0 @@
-package gnss
-
-import "fmt"

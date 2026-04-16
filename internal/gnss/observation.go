@@ -1,5 +1,7 @@
 package gnss
 
+import "fmt"
+
 // Constellation identifies a GNSS satellite system.
 type Constellation uint8
 
