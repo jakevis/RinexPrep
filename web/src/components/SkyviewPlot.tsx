@@ -1,26 +1,25 @@
-import { Compass } from 'lucide-react'
+import { Compass, Maximize2 } from 'lucide-react'
 import type { SatPosition } from '../types'
 
 interface SkyviewPlotProps {
   satellites: SatPosition[] | null
+  onExpand?: () => void
 }
 
-const CONSTELLATION_COLORS: Record<string, string> = {
-  G: '#3b82f6',    // GPS
-  R: '#ef4444',    // GLONASS
-  E: '#22c55e',    // Galileo
-  C: '#f97316',    // BeiDou
-  S: '#9ca3af',    // SBAS
-  J: '#a855f7',    // QZSS
+const FREQ_COLORS: Record<string, string> = {
+  'L1+L2': '#22c55e',  // Green — dual frequency, ideal for OPUS
+  'L1+L5': '#a855f7',  // Purple
+  'L1': '#3b82f6',     // Blue — single frequency
+  'L2': '#f97316',     // Orange
+  'none': '#ef4444',   // Red
 }
 
-const CONSTELLATION_NAMES: Record<string, string> = {
-  G: 'GPS',
-  R: 'GLONASS',
-  E: 'Galileo',
-  C: 'BeiDou',
-  S: 'SBAS',
-  J: 'QZSS',
+const FREQ_LABELS: Record<string, string> = {
+  'L1+L2': 'L1 + L2 (Dual)',
+  'L1+L5': 'L1 + L5',
+  'L1': 'L1 Only',
+  'L2': 'L2 Only',
+  'none': 'No Signal',
 }
 
 const SIZE = 320
@@ -36,7 +35,7 @@ function polarToXY(azDeg: number, elDeg: number): { x: number; y: number } {
   }
 }
 
-export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
+export default function SkyviewPlot({ satellites, onExpand }: SkyviewPlotProps) {
   // Group satellites by (system, prn) to form arcs
   const arcs = new Map<string, SatPosition[]>()
   if (satellites) {
@@ -53,12 +52,26 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
 
   const hasArcs = Array.from(arcs.values()).some(positions => positions.length > 1)
 
+  // Determine which frequency types are present
+  const presentFreqs = new Set<string>()
+  arcs.forEach(positions => {
+    const freq = positions[0].freqs ?? 'L1'
+    presentFreqs.add(freq)
+  })
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-full">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-        <Compass className="w-5 h-5 text-indigo-500" />
-        Skyview Plot
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <Compass className="w-5 h-5 text-indigo-500" />
+          Skyview Plot
+        </h2>
+        {onExpand && (
+          <button onClick={onExpand} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Expand">
+            <Maximize2 className="w-4 h-4 text-gray-400" />
+          </button>
+        )}
+      </div>
 
       {!satellites || satellites.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400 dark:text-gray-500">
@@ -138,7 +151,8 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
             {hasArcs ? (
               // Arc trail mode: draw polylines per satellite
               Array.from(arcs.entries()).map(([key, positions]) => {
-                const color = CONSTELLATION_COLORS[positions[0].system] ?? '#9ca3af'
+                const freq = positions[0].freqs ?? 'L1'
+                const color = FREQ_COLORS[freq] ?? '#3b82f6'
                 const points = positions
                   .map(p => {
                     const { x, y } = polarToXY(p.azimuth, p.elevation)
@@ -174,7 +188,8 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
               <>
                 {satellites.map((sat, i) => {
                   const { x, y } = polarToXY(sat.azimuth, sat.elevation)
-                  const color = CONSTELLATION_COLORS[sat.system] ?? '#9ca3af'
+                  const freq = sat.freqs ?? 'L1'
+                  const color = FREQ_COLORS[freq] ?? '#3b82f6'
                   return (
                     <circle key={`${sat.system}${sat.prn}-${i}`} cx={x} cy={y} r={4.5} fill={color} opacity={0.9} />
                   )
@@ -182,7 +197,8 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
                 {Array.from(arcs.entries()).map(([key, positions]) => {
                   const sat = positions[positions.length - 1]
                   const { x, y } = polarToXY(sat.azimuth, sat.elevation)
-                  const color = CONSTELLATION_COLORS[sat.system] ?? '#9ca3af'
+                  const freq = sat.freqs ?? 'L1'
+                  const color = FREQ_COLORS[freq] ?? '#3b82f6'
                   return (
                     <text
                       key={`label-${key}`}
@@ -201,17 +217,19 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
             )}
           </svg>
 
-          {/* Legend */}
+          {/* Legend — only show frequencies present in data */}
           <div className="flex flex-wrap justify-center gap-4 mt-3 text-xs">
-            {Object.entries(CONSTELLATION_COLORS).map(([code, color]) => (
-              <div key={code} className="flex items-center gap-1.5">
-                <span
-                  className="w-2.5 h-2.5 rounded-full inline-block"
-                  style={{ backgroundColor: color }}
-                />
-                <span className="text-gray-600 dark:text-gray-400">{CONSTELLATION_NAMES[code] ?? code}</span>
-              </div>
-            ))}
+            {Object.entries(FREQ_COLORS)
+              .filter(([code]) => presentFreqs.has(code))
+              .map(([code, color]) => (
+                <div key={code} className="flex items-center gap-1.5">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full inline-block"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="text-gray-600 dark:text-gray-400">{FREQ_LABELS[code] ?? code}</span>
+                </div>
+              ))}
           </div>
         </div>
       )}

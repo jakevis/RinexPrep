@@ -67,7 +67,8 @@ type SatPosition struct {
 	Azimuth   float64 `json:"azimuth"`
 	Elevation float64 `json:"elevation"`
 	SNR       float64 `json:"snr"`
-	TimeSec   float64 `json:"time_sec"` // seconds from session start
+	TimeSec   float64 `json:"time_sec"`  // seconds from session start
+	Freqs     string  `json:"freqs"`     // "L1", "L2", "L1+L2", "L1+L5", etc.
 }
 
 // TrimBounds defines start/end trim points in seconds from session start.

@@ -10,7 +10,7 @@ import SessionStats from './components/SessionStats'
 import ConfigGuide from './components/ConfigGuide'
 import * as api from './api'
 import type { AppState, PreviewData } from './types'
-import { Loader2 } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 
 function App() {
   const [appState, setAppState] = useState<AppState>('idle')
@@ -22,6 +22,7 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [progressMessage, setProgressMessage] = useState<string | null>(null)
+  const [expandedPanel, setExpandedPanel] = useState<string | null>(null)
 
   const handleFileSelected = useCallback(async (file: File) => {
     setError(null)
@@ -146,12 +147,16 @@ function App() {
                     epochs={preview.epochs}
                     trimRange={{ start: trimStart, end: trimEnd }}
                     autoTrim={preview.auto_trim}
+                    onExpand={() => setExpandedPanel('chart')}
                   />
                 </div>
               </div>
               <div className="flex">
                 <div className="w-full">
-                  <SkyviewPlot satellites={preview.skyview} />
+                  <SkyviewPlot
+                    satellites={preview.skyview}
+                    onExpand={() => setExpandedPanel('skyview')}
+                  />
                 </div>
               </div>
             </div>
@@ -167,35 +172,59 @@ function App() {
                   />
                 </div>
               </div>
-              <div className="flex">
-                <div className="w-full">
-                  <TrimSliders
-                    totalDuration={preview.total_duration_sec}
-                    trimStart={trimStart}
-                    trimEnd={trimEnd}
-                    autoTrim={preview.auto_trim}
-                    onTrimChange={handleTrimChange}
-                  />
-                </div>
+              <div className="flex flex-col gap-4">
+                <TrimSliders
+                  totalDuration={preview.total_duration_sec}
+                  trimStart={trimStart}
+                  trimEnd={trimEnd}
+                  autoTrim={preview.auto_trim}
+                  onTrimChange={handleTrimChange}
+                />
+                <QCSummary qc={preview.qc} />
               </div>
               <div className="flex">
                 <div className="w-full">
-                  <QCSummary qc={preview.qc} />
+                  <DownloadPanel
+                    isReady={appState === 'ready'}
+                    onProcess={handleProcess}
+                    onDownload={handleDownload}
+                    isProcessing={isProcessing}
+                  />
                 </div>
               </div>
             </div>
 
-            {/* Download row */}
-            <div className="flex justify-center">
-              <div className="w-full max-w-md">
-                <DownloadPanel
-                  isReady={appState === 'ready'}
-                  onProcess={handleProcess}
-                  onDownload={handleDownload}
-                  isProcessing={isProcessing}
-                />
+            {/* Expanded panel overlay */}
+            {expandedPanel && (
+              <div
+                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
+                onClick={() => setExpandedPanel(null)}
+              >
+                <div
+                  className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-auto p-8 relative"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <button
+                    className="absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => setExpandedPanel(null)}
+                  >
+                    <X className="w-5 h-5 text-gray-500" />
+                  </button>
+                  {expandedPanel === 'chart' && (
+                    <div className="h-[70vh]">
+                      <SatelliteChart
+                        epochs={preview.epochs}
+                        trimRange={{ start: trimStart, end: trimEnd }}
+                        autoTrim={preview.auto_trim}
+                      />
+                    </div>
+                  )}
+                  {expandedPanel === 'skyview' && (
+                    <SkyviewPlot satellites={preview.skyview} />
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
 

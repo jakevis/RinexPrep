@@ -21,6 +21,7 @@ export interface SatPosition {
   elevation: number
   snr: number
   time_sec?: number
+  freqs?: string
 }
 
 export interface QCSummary {

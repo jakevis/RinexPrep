@@ -9,13 +9,14 @@ import {
   ReferenceArea,
   ResponsiveContainer,
 } from 'recharts'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, Maximize2 } from 'lucide-react'
 import type { EpochSummary, AutoTrim } from '../types'
 
 interface SatelliteChartProps {
   epochs: EpochSummary[] | null
   trimRange: { start: number; end: number } | null
   autoTrim: AutoTrim | null
+  onExpand?: () => void
 }
 
 function formatTime(sec: number): string {
@@ -29,6 +30,7 @@ export default function SatelliteChart({
   epochs,
   trimRange,
   autoTrim,
+  onExpand,
 }: SatelliteChartProps) {
   if (!epochs || epochs.length === 0) {
     return (
@@ -56,12 +58,20 @@ export default function SatelliteChart({
   const dataEnd = epochs[epochs.length - 1].time_sec
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-full">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-        <BarChart3 className="w-5 h-5 text-indigo-500" />
-        Satellite Visibility
-      </h2>
-      <ResponsiveContainer width="100%" height={280}>
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-indigo-500" />
+          Satellite Visibility
+        </h2>
+        {onExpand && (
+          <button onClick={onExpand} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Expand">
+            <Maximize2 className="w-4 h-4 text-gray-400" />
+          </button>
+        )}
+      </div>
+      <div className="flex-1 min-h-[280px]">
+      <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
           <XAxis
@@ -104,6 +114,7 @@ export default function SatelliteChart({
           <Line type="monotone" dataKey="total_sats" stroke="#a855f7" name="Total" strokeWidth={2} dot={false} strokeDasharray="5 5" />
         </LineChart>
       </ResponsiveContainer>
+      </div>
     </div>
   )
 }

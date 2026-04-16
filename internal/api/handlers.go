@@ -523,6 +523,50 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 		endTimeUTC = time.Unix(0, eNanos).UTC().Format(time.RFC3339)
 	}
 
+	// Build per-satellite frequency coverage map from RAWX observation data.
+	type freqInfo struct {
+		hasL1, hasL2, hasL5 bool
+	}
+	freqAccum := make(map[string]*freqInfo)
+	for _, ep := range epochs {
+		for _, sat := range ep.Satellites {
+			if sat.Constellation != gnss.ConsGPS {
+				continue
+			}
+			key := fmt.Sprintf("%s%d", sat.Constellation.String(), sat.PRN)
+			fi, exists := freqAccum[key]
+			if !exists {
+				fi = &freqInfo{}
+				freqAccum[key] = fi
+			}
+			for _, sig := range sat.Signals {
+				switch sig.FreqBand {
+				case 0:
+					fi.hasL1 = true
+				case 1:
+					fi.hasL2 = true
+				case 2:
+					fi.hasL5 = true
+				}
+			}
+		}
+	}
+	freqMap := make(map[string]string)
+	for key, fi := range freqAccum {
+		switch {
+		case fi.hasL1 && fi.hasL2:
+			freqMap[key] = "L1+L2"
+		case fi.hasL1 && fi.hasL5:
+			freqMap[key] = "L1+L5"
+		case fi.hasL1:
+			freqMap[key] = "L1"
+		case fi.hasL2:
+			freqMap[key] = "L2"
+		default:
+			freqMap[key] = "none"
+		}
+	}
+
 	// Build skyview arcs from NAV-SAT data (all epochs, subsampled).
 	startTOWNanos := epochs[0].Time.TOWNanos
 	var skyview []SatPosition
@@ -548,6 +592,11 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 				if gnss.Constellation(sat.GnssID) != gnss.ConsGPS {
 					continue
 				}
+				satKey := fmt.Sprintf("G%d", sat.SvID)
+				freqs := freqMap[satKey]
+				if freqs == "" {
+					freqs = "L1"
+				}
 				skyview = append(skyview, SatPosition{
 					System:    gnss.Constellation(sat.GnssID).String(),
 					PRN:       int(sat.SvID),
@@ -555,6 +604,7 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 					Elevation: float64(sat.Elevation),
 					SNR:       float64(sat.CNO),
 					TimeSec:   timeSec,
+					Freqs:     freqs,
 				})
 			}
 		}
@@ -568,6 +618,9 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 			firstEpoch int
 			lastEpoch  int
 			snrSamples []float64
+			hasL1      bool
+			hasL2      bool
+			hasL5      bool
 		}
 
 		tracks := make(map[string]*satTrack)
@@ -596,6 +649,16 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 				}
 				t.lastEpoch = i
 				t.snrSamples = append(t.snrSamples, bestSNR)
+				for _, sig := range sat.Signals {
+					switch sig.FreqBand {
+					case 0:
+						t.hasL1 = true
+					case 1:
+						t.hasL2 = true
+					case 2:
+						t.hasL5 = true
+					}
+				}
 			}
 		}
 
@@ -603,6 +666,21 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 		totalEpochs := len(epochs)
 
 		for _, t := range tracks {
+			// Determine frequency coverage for this satellite.
+			freqs := ""
+			switch {
+			case t.hasL1 && t.hasL2:
+				freqs = "L1+L2"
+			case t.hasL1 && t.hasL5:
+				freqs = "L1+L5"
+			case t.hasL1:
+				freqs = "L1"
+			case t.hasL2:
+				freqs = "L2"
+			default:
+				freqs = "none"
+			}
+
 			// Determine arc parameters from PRN.
 			// Use PRN with offsets per constellation to spread satellites around the sky.
 			basePRN := t.prn
@@ -676,6 +754,7 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 					Elevation: el,
 					SNR:       t.snrSamples[snrIdx],
 					TimeSec:   timeSec,
+					Freqs:     freqs,
 				})
 			}
 		}
