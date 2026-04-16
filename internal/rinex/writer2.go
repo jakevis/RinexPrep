@@ -79,7 +79,7 @@ func (rw *Writer2) headerLines() []string {
 	var lines []string
 
 	lines = append(lines, headerLine(
-		fmt.Sprintf("%9s%-11s%-20s%-20s", "2.11", "", "OBSERVATION DATA", "G (GPS)"),
+		fmt.Sprintf("%9s%-11s%-20s%-20s", "2.12", "", "OBSERVATION DATA", "G (GPS)"),
 		"RINEX VERSION / TYPE"))
 
 	lines = append(lines, headerLine(
