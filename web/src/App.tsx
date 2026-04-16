@@ -47,8 +47,8 @@ function App() {
             clearInterval(pollInterval)
             const previewData = await api.getPreview(newJobId)
             setPreview(previewData)
-            setTrimStart(previewData.auto_trim.start_sec)
-            setTrimEnd(previewData.auto_trim.end_sec)
+            setTrimStart(previewData.auto_trim?.start_sec ?? 0)
+            setTrimEnd(previewData.auto_trim?.end_sec ?? previewData.total_duration_sec ?? 0)
             setProgressMessage(null)
             setAppState('preview')
           } else if (status.status === 'failed') {

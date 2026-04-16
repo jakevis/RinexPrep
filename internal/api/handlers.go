@@ -666,15 +666,19 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 	// Generate sky tracks from RAWX observation data.
 	// Each satellite gets a pseudo-arc based on its PRN (orbital slot) and visibility window.
 	if len(skyview) == 0 && len(epochs) > 0 {
+		type epochEntry struct {
+			snr    float64
+			hasL1  bool
+			hasL2  bool
+			hasL5  bool
+			locked bool // true if all signals have lock time > 0
+		}
 		type satTrack struct {
 			system     string
 			prn        int
 			firstEpoch int
 			lastEpoch  int
-			snrSamples []float64
-			hasL1      bool
-			hasL2      bool
-			hasL5      bool
+			epochData  []epochEntry
 		}
 
 		tracks := make(map[string]*satTrack)
@@ -686,9 +690,23 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 				}
 				key := fmt.Sprintf("%s%d", sat.Constellation.String(), sat.PRN)
 				bestSNR := 0.0
+				hasL1, hasL2, hasL5 := false, false, false
+				allLocked := true
+
 				for _, sig := range sat.Signals {
 					if sig.SNR > bestSNR {
 						bestSNR = sig.SNR
+					}
+					switch sig.FreqBand {
+					case 0:
+						hasL1 = true
+					case 1:
+						hasL2 = true
+					case 2:
+						hasL5 = true
+					}
+					if sig.LockTimeSec <= 0 {
+						allLocked = false
 					}
 				}
 
@@ -702,17 +720,13 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 					tracks[key] = t
 				}
 				t.lastEpoch = i
-				t.snrSamples = append(t.snrSamples, bestSNR)
-				for _, sig := range sat.Signals {
-					switch sig.FreqBand {
-					case 0:
-						t.hasL1 = true
-					case 1:
-						t.hasL2 = true
-					case 2:
-						t.hasL5 = true
-					}
-				}
+				t.epochData = append(t.epochData, epochEntry{
+					snr:    bestSNR,
+					hasL1:  hasL1,
+					hasL2:  hasL2,
+					hasL5:  hasL5,
+					locked: allLocked,
+				})
 			}
 		}
 
@@ -720,23 +734,7 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 		totalEpochs := len(epochs)
 
 		for _, t := range tracks {
-			// Determine frequency coverage for this satellite.
-			freqs := ""
-			switch {
-			case t.hasL1 && t.hasL2:
-				freqs = "L1+L2"
-			case t.hasL1 && t.hasL5:
-				freqs = "L1+L5"
-			case t.hasL1:
-				freqs = "L1"
-			case t.hasL2:
-				freqs = "L2"
-			default:
-				freqs = "none"
-			}
-
 			// Determine arc parameters from PRN.
-			// Use PRN with offsets per constellation to spread satellites around the sky.
 			basePRN := t.prn
 			if t.system == "R" {
 				basePRN += 32
@@ -757,10 +755,10 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 
 			// Peak elevation: use average SNR as a rough proxy.
 			avgSNR := 0.0
-			for _, s := range t.snrSamples {
-				avgSNR += s
+			for _, ed := range t.epochData {
+				avgSNR += ed.snr
 			}
-			avgSNR /= float64(len(t.snrSamples))
+			avgSNR /= float64(len(t.epochData))
 			peakEl := 20.0 + (avgSNR-20.0)/30.0*60.0
 			if peakEl < 15 {
 				peakEl = 15
@@ -796,9 +794,25 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 				}
 				timeSec := float64(epochs[epochIdx].Time.UnixNanos()-startNanos) / 1e9
 
-				snrIdx := int(frac * float64(len(t.snrSamples)-1))
-				if snrIdx >= len(t.snrSamples) {
-					snrIdx = len(t.snrSamples) - 1
+				// Map arc point to the nearest per-epoch data entry.
+				dataIdx := int(frac * float64(len(t.epochData)-1))
+				if dataIdx >= len(t.epochData) {
+					dataIdx = len(t.epochData) - 1
+				}
+				ed := t.epochData[dataIdx]
+
+				// Determine frequency string for this specific point.
+				freqs := "none"
+				if !ed.locked {
+					freqs = "no_lock"
+				} else if ed.hasL1 && ed.hasL2 {
+					freqs = "L1+L2"
+				} else if ed.hasL1 && ed.hasL5 {
+					freqs = "L1+L5"
+				} else if ed.hasL1 {
+					freqs = "L1"
+				} else if ed.hasL2 {
+					freqs = "L2"
 				}
 
 				skyview = append(skyview, SatPosition{
@@ -806,7 +820,7 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 					PRN:       t.prn,
 					Azimuth:   az,
 					Elevation: el,
-					SNR:       t.snrSamples[snrIdx],
+					SNR:       ed.snr,
 					TimeSec:   timeSec,
 					Freqs:     freqs,
 				})

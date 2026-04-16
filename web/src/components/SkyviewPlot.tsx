@@ -7,11 +7,12 @@ interface SkyviewPlotProps {
 }
 
 const FREQ_COLORS: Record<string, string> = {
-  'L1+L2': '#22c55e',  // Green — dual frequency, ideal for OPUS
-  'L1+L5': '#a855f7',  // Purple
-  'L1': '#3b82f6',     // Blue — single frequency
-  'L2': '#f97316',     // Orange
-  'none': '#ef4444',   // Red
+  'L1+L2': '#22c55e',   // Green — dual frequency, ideal for OPUS
+  'L1+L5': '#a855f7',   // Purple
+  'L1': '#3b82f6',      // Blue — single frequency
+  'L2': '#f97316',      // Orange
+  'no_lock': '#ef4444', // Red — lock lost
+  'none': '#9ca3af',    // Gray
 }
 
 const FREQ_LABELS: Record<string, string> = {
@@ -19,6 +20,7 @@ const FREQ_LABELS: Record<string, string> = {
   'L1+L5': 'L1 + L5',
   'L1': 'L1 Only',
   'L2': 'L2 Only',
+  'no_lock': 'Lock Lost',
   'none': 'No Signal',
 }
 
@@ -52,11 +54,12 @@ export default function SkyviewPlot({ satellites, onExpand }: SkyviewPlotProps) 
 
   const hasArcs = Array.from(arcs.values()).some(positions => positions.length > 1)
 
-  // Determine which frequency types are present
+  // Determine which frequency types are present (check all points, not just first)
   const presentFreqs = new Set<string>()
   arcs.forEach(positions => {
-    const freq = positions[0].freqs ?? 'L1'
-    presentFreqs.add(freq)
+    positions.forEach(pos => {
+      presentFreqs.add(pos.freqs ?? 'L1')
+    })
   })
 
   return (
@@ -149,37 +152,42 @@ export default function SkyviewPlot({ satellites, onExpand }: SkyviewPlotProps) 
 
             {/* Satellite arcs or dots */}
             {hasArcs ? (
-              // Arc trail mode: draw polylines per satellite
+              // Arc trail mode: draw per-segment colored lines per satellite
               Array.from(arcs.entries()).map(([key, positions]) => {
-                const freq = positions[0].freqs ?? 'L1'
-                const color = FREQ_COLORS[freq] ?? '#3b82f6'
-                const points = positions
-                  .map(p => {
-                    const { x, y } = polarToXY(p.azimuth, p.elevation)
-                    return `${x},${y}`
-                  })
-                  .join(' ')
-
-                const last = positions[positions.length - 1]
-                const { x, y } = polarToXY(last.azimuth, last.elevation)
-
                 return (
                   <g key={key}>
-                    <polyline
-                      points={points}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth={2}
-                      opacity={0.6}
-                    />
-                    <circle cx={x} cy={y} r={4.5} fill={color} opacity={0.9} />
-                    <text
-                      x={x} y={y - 7}
-                      textAnchor="middle" fontSize={7} fontWeight={600}
-                      fill={color}
-                    >
-                      {last.system}{last.prn}
-                    </text>
+                    {/* Draw segments between consecutive points */}
+                    {positions.map((pos, i) => {
+                      if (i === 0) return null
+                      const prev = positions[i - 1]
+                      const { x: x1, y: y1 } = polarToXY(prev.azimuth, prev.elevation)
+                      const { x: x2, y: y2 } = polarToXY(pos.azimuth, pos.elevation)
+                      const color = FREQ_COLORS[pos.freqs ?? 'L1'] ?? '#3b82f6'
+                      return (
+                        <line
+                          key={`seg-${key}-${i}`}
+                          x1={x1} y1={y1} x2={x2} y2={y2}
+                          stroke={color}
+                          strokeWidth={2.5}
+                          opacity={0.7}
+                          strokeLinecap="round"
+                        />
+                      )
+                    })}
+                    {/* End dot with PRN label */}
+                    {positions.length > 0 && (() => {
+                      const last = positions[positions.length - 1]
+                      const { x, y } = polarToXY(last.azimuth, last.elevation)
+                      const color = FREQ_COLORS[last.freqs ?? 'L1'] ?? '#3b82f6'
+                      return (
+                        <>
+                          <circle cx={x} cy={y} r={4.5} fill={color} opacity={0.9} />
+                          <text x={x} y={y - 8} textAnchor="middle" fontSize={7} fontWeight={600} fill={color}>
+                            {last.system}{last.prn}
+                          </text>
+                        </>
+                      )
+                    })()}
                   </g>
                 )
               })

@@ -97,9 +97,9 @@ export default function QCSummary({ qc }: QCSummaryProps) {
       </div>
 
       {/* Warnings */}
-      {qc.warnings.length > 0 && (
+      {(qc.warnings ?? []).length > 0 && (
         <div className="space-y-1.5 mb-3">
-          {qc.warnings.map((w, i) => (
+          {(qc.warnings ?? []).map((w, i) => (
             <div
               key={i}
               className="flex items-start gap-2 text-xs text-yellow-700 dark:text-yellow-400"
