@@ -8,8 +8,10 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // OPUSRequest holds the parameters for an OPUS submission.
@@ -130,7 +132,6 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// Don't follow redirects — a redirect means OPUS accepted the submission
 			return http.ErrUseLastResponse
 		},
 	}
@@ -147,10 +148,42 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 	log.Printf("OPUS submission for job %s: status=%d", id, resp.StatusCode)
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-		jsonResponse(w, http.StatusOK, map[string]interface{}{
+		result := map[string]interface{}{
 			"status":  "submitted",
 			"message": "Your RINEX file has been submitted to OPUS. Results will be emailed to " + req.Email,
-		})
+		}
+
+		// Parse useful info from the redirect URL
+		if loc := resp.Header.Get("Location"); loc != "" {
+			if u, err := url.Parse(loc); err == nil {
+				q := u.Query()
+				if v := q.Get("queue"); v != "" {
+					result["queue_position"] = v
+				}
+				if v := q.Get("processor"); v != "" {
+					result["processor"] = v
+				}
+				if v := q.Get("rnxf"); v != "" {
+					result["rinex_file"] = v
+				}
+				if v := q.Get("seq"); v != "" && v != "" {
+					result["sequence"] = v
+				}
+			}
+		}
+
+		// If OPUS returned HTML body, try to extract any useful text
+		if len(body) > 0 {
+			bodyStr := string(body)
+			// Look for common confirmation patterns
+			if strings.Contains(bodyStr, "has been received") ||
+				strings.Contains(bodyStr, "queued") ||
+				strings.Contains(bodyStr, "processing") {
+				result["opus_confirmed"] = true
+			}
+		}
+
+		jsonResponse(w, http.StatusOK, result)
 	} else {
 		jsonResponse(w, http.StatusBadGateway, map[string]interface{}{
 			"status":        "failed",

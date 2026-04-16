@@ -44,13 +44,16 @@ export default function DownloadPanel({
     setOpusError(null)
     setOpusStatus(null)
     try {
-      await api.submitToOPUS(jobId, {
+      const result = await api.submitToOPUS(jobId, {
         email,
         antenna_type: antennaType,
         height: parseFloat(antennaHeight) || 0,
         mode,
       })
-      setOpusStatus(`Submitted! Results will be emailed to ${email}`)
+      let msg = `Submitted to OPUS ${result.processor ?? mode}! Results will be emailed to ${email}.`
+      if (result.queue_position) msg += ` Queue position: #${result.queue_position}.`
+      if (result.rinex_file) msg += ` File: ${result.rinex_file}`
+      setOpusStatus(msg)
     } catch (err) {
       setOpusError(err instanceof Error ? err.message : 'Submission failed')
     } finally {
