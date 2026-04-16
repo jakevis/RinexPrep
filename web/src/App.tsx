@@ -139,39 +139,49 @@ function App() {
         {(appState === 'preview' || appState === 'ready') && preview && (
           <>
             {/* Charts row */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <SatelliteChart
-                  epochs={preview.epochs}
-                  trimRange={{ start: trimStart, end: trimEnd }}
-                  autoTrim={preview.auto_trim}
-                />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+              <div className="lg:col-span-2 flex">
+                <div className="w-full">
+                  <SatelliteChart
+                    epochs={preview.epochs}
+                    trimRange={{ start: trimStart, end: trimEnd }}
+                    autoTrim={preview.auto_trim}
+                  />
+                </div>
               </div>
-              <div>
-                <SkyviewPlot satellites={preview.skyview} />
+              <div className="flex">
+                <div className="w-full">
+                  <SkyviewPlot satellites={preview.skyview} />
+                </div>
               </div>
             </div>
 
             {/* Controls row */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div>
-                <SessionStats
-                  preview={preview}
-                  trimStart={trimStart}
-                  trimEnd={trimEnd}
-                />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+              <div className="flex">
+                <div className="w-full">
+                  <SessionStats
+                    preview={preview}
+                    trimStart={trimStart}
+                    trimEnd={trimEnd}
+                  />
+                </div>
               </div>
-              <div>
-                <TrimSliders
-                  totalDuration={preview.total_duration_sec}
-                  trimStart={trimStart}
-                  trimEnd={trimEnd}
-                  autoTrim={preview.auto_trim}
-                  onTrimChange={handleTrimChange}
-                />
+              <div className="flex">
+                <div className="w-full">
+                  <TrimSliders
+                    totalDuration={preview.total_duration_sec}
+                    trimStart={trimStart}
+                    trimEnd={trimEnd}
+                    autoTrim={preview.auto_trim}
+                    onTrimChange={handleTrimChange}
+                  />
+                </div>
               </div>
-              <div>
-                <QCSummary qc={preview.qc} />
+              <div className="flex">
+                <div className="w-full">
+                  <QCSummary qc={preview.qc} />
+                </div>
               </div>
             </div>
 

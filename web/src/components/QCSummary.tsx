@@ -27,7 +27,7 @@ function scoreBg(score: number): string {
 export default function QCSummary({ qc }: QCSummaryProps) {
   if (!qc) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-full">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <ShieldCheck className="w-5 h-5 text-indigo-500" />
           Quality Check
@@ -44,7 +44,7 @@ export default function QCSummary({ qc }: QCSummaryProps) {
   const displayScore = Math.round(qc.score)
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-full">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
           <ShieldCheck className="w-5 h-5 text-indigo-500" />

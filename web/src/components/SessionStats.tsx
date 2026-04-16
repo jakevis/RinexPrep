@@ -124,7 +124,7 @@ export default function SessionStats({ preview, trimStart, trimEnd }: SessionSta
   const iconSize = 'w-4 h-4'
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-full">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
         <Radio className="w-5 h-5 text-indigo-500" />
         Session Statistics
