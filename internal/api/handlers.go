@@ -303,13 +303,17 @@ func (s *Server) handleProcess(w http.ResponseWriter, r *http.Request) {
 	// Build output metadata with placeholder values.
 	meta := buildMetadata(processed, 30)
 
-	// Generate descriptive filename from session date/time
+	// Generate descriptive filename with standard RINEX extension (.YYO)
 	var fileBase string
+	var yearSuffix string
 	if len(processed) > 0 {
 		y, mo, d, h, mi, _ := rinex.GNSSTimeToCalendar(processed[0].Time)
 		fileBase = fmt.Sprintf("rinexprep_%04d%02d%02d_%02d%02d", y, mo, d, h, mi)
+		yearSuffix = fmt.Sprintf("%02dO", y%100)
 	} else {
-		fileBase = fmt.Sprintf("rinexprep_%s", time.Now().UTC().Format("20060102_1504"))
+		now := time.Now().UTC()
+		fileBase = fmt.Sprintf("rinexprep_%s", now.Format("20060102_1504"))
+		yearSuffix = fmt.Sprintf("%02dO", now.Year()%100)
 	}
 
 	// Write output files.
@@ -317,7 +321,7 @@ func (s *Server) handleProcess(w http.ResponseWriter, r *http.Request) {
 	var outputFiles []string
 
 	if job.Format == "rinex2" || job.Format == "both" {
-		obsName := fileBase + ".obs"
+		obsName := fileBase + "_v2." + yearSuffix
 		outPath := filepath.Join(jobDir, obsName)
 		if err := writeRinex2File(outPath, meta, processed); err != nil {
 			job.Status = StatusFailed
@@ -329,7 +333,7 @@ func (s *Server) handleProcess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if job.Format == "rinex3" || job.Format == "both" {
-		rnxName := fileBase + ".rnx"
+		rnxName := fileBase + "_v3." + yearSuffix
 		outPath := filepath.Join(jobDir, rnxName)
 		if err := writeRinex3File(outPath, meta, processed); err != nil {
 			job.Status = StatusFailed
@@ -375,28 +379,27 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	format := r.URL.Query().Get("format")
-	jobDir := filepath.Join(s.jobStore.dir, job.ID)
 
 	switch format {
-	case "rinex2":
-		outPath := filepath.Join(jobDir, "output.obs")
-		if _, err := os.Stat(outPath); err != nil {
-			jsonError(w, "RINEX 2.11 file not found", http.StatusNotFound)
+	case "rinex2", "rinex3":
+		tag := "_v2."
+		if format == "rinex3" {
+			tag = "_v3."
+		}
+		var filePath string
+		for _, f := range job.OutputFiles {
+			if strings.Contains(f, tag) {
+				filePath = filepath.Join(s.jobStore.dir, f)
+				break
+			}
+		}
+		if filePath == "" {
+			jsonError(w, format+" file not found", http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Disposition", `attachment; filename="output.obs"`)
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, filepath.Base(filePath)))
 		w.Header().Set("Content-Type", "application/octet-stream")
-		http.ServeFile(w, r, outPath)
-
-	case "rinex3":
-		outPath := filepath.Join(jobDir, "output.rnx")
-		if _, err := os.Stat(outPath); err != nil {
-			jsonError(w, "RINEX 3.x file not found", http.StatusNotFound)
-			return
-		}
-		w.Header().Set("Content-Disposition", `attachment; filename="output.rnx"`)
-		w.Header().Set("Content-Type", "application/octet-stream")
-		http.ServeFile(w, r, outPath)
+		http.ServeFile(w, r, filePath)
 
 	default:
 		// Zip all output files — explicitly close before return.
@@ -450,18 +453,22 @@ func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var files []FileInfo
-	jobDir := filepath.Join(s.jobStore.dir, job.ID)
 
-	if info, err := os.Stat(filepath.Join(jobDir, "output.obs")); err == nil {
+	for _, relPath := range job.OutputFiles {
+		absPath := filepath.Join(s.jobStore.dir, relPath)
+		info, err := os.Stat(absPath)
+		if err != nil {
+			continue
+		}
+		name := filepath.Base(relPath)
+		format := "rinex3"
+		label := "RINEX 3.03 (." + filepath.Ext(name)[1:] + ")"
+		if strings.Contains(name, "_v2.") {
+			format = "rinex2"
+			label = "RINEX 2.11 (." + filepath.Ext(name)[1:] + ")"
+		}
 		files = append(files, FileInfo{
-			Name: "output.obs", Format: "rinex2", Size: info.Size(),
-			Label: "RINEX 2.11 (.obs)",
-		})
-	}
-	if info, err := os.Stat(filepath.Join(jobDir, "output.rnx")); err == nil {
-		files = append(files, FileInfo{
-			Name: "output.rnx", Format: "rinex3", Size: info.Size(),
-			Label: "RINEX 3.x (.rnx)",
+			Name: name, Format: format, Size: info.Size(), Label: label,
 		})
 	}
 

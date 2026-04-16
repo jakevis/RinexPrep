@@ -52,13 +52,13 @@ var signalTable = map[signalKey]SignalMapping{
 	{0, 3}: {
 		GnssID: 0, SigID: 3, FreqBand: 1,
 		Rinex2:   Rinex2Codes{"C2", "L2", "D2", "S2"},
-		Rinex3:   Rinex3Codes{"C2L", "L2L", "D2L", "S2L"},
+		Rinex3:   Rinex3Codes{"C2X", "L2X", "D2X", "S2X"},
 		Priority: 1, Desc: "GPS L2 CL",
 	},
 	{0, 4}: {
 		GnssID: 0, SigID: 4, FreqBand: 1,
 		Rinex2:   Rinex2Codes{"C2", "L2", "D2", "S2"},
-		Rinex3:   Rinex3Codes{"C2S", "L2S", "D2S", "S2S"},
+		Rinex3:   Rinex3Codes{"C2X", "L2X", "D2X", "S2X"},
 		Priority: 2, Desc: "GPS L2 CM",
 	},
 	{0, 6}: {

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // OPUSRequest holds the parameters for an OPUS submission.
@@ -57,9 +58,10 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Find the RINEX 3.x file first (OPUS accepts RINEX 3)
+	// Files now use .YYO extension (e.g., .26O) with _v3 or _v2 in the name
 	var rinexPath string
 	for _, f := range job.OutputFiles {
-		if filepath.Ext(f) == ".rnx" {
+		if strings.Contains(f, "_v3.") {
 			rinexPath = filepath.Join(s.jobStore.dir, f)
 			break
 		}
@@ -67,10 +69,16 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 	if rinexPath == "" {
 		// Fall back to RINEX 2.11
 		for _, f := range job.OutputFiles {
-			if filepath.Ext(f) == ".obs" {
+			if strings.Contains(f, "_v2.") {
 				rinexPath = filepath.Join(s.jobStore.dir, f)
 				break
 			}
+		}
+	}
+	if rinexPath == "" {
+		// Last resort: use first output file
+		if len(job.OutputFiles) > 0 {
+			rinexPath = filepath.Join(s.jobStore.dir, job.OutputFiles[0])
 		}
 	}
 	if rinexPath == "" {

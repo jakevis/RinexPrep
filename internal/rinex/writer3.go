@@ -12,7 +12,7 @@ import (
 
 // rinex3ObsCodes defines the default observation codes per constellation.
 var rinex3ObsCodes = map[gnss.Constellation][]string{
-	gnss.ConsGPS:     {"C1C", "L1C", "D1C", "S1C", "C2L", "L2L", "D2L", "S2L"},
+	gnss.ConsGPS:     {"C1C", "L1C", "D1C", "S1C", "C2X", "L2X", "D2X", "S2X"},
 	gnss.ConsGLONASS: {"C1C", "L1C", "D1C", "S1C", "C2C", "L2C", "D2C", "S2C"},
 	gnss.ConsGalileo: {"C1C", "L1C", "D1C", "S1C", "C7I", "L7I", "D7I", "S7I"},
 	gnss.ConsBeiDou:  {"C2I", "L2I", "D2I", "S2I", "C7I", "L7I", "D7I", "S7I"},
@@ -77,11 +77,11 @@ func (rw *Writer3) writeHeaderWithSystems(systems map[gnss.Constellation]bool) e
 	var lines []string
 
 	// RINEX VERSION / TYPE
-	sysChar := "M (MIXED)"
+	sysChar := "M: Mixed"
 	if rw.gpsOnly {
-		sysChar = "G (GPS)"
+		sysChar = "G: GPS"
 	}
-	versionLine := fmt.Sprintf("%9s%11s%-20s%-20s", "3.04", "", "OBSERVATION DATA", sysChar)
+	versionLine := fmt.Sprintf("%9s%11s%-20s%-20s", "3.03", "", "OBSERVATION DATA", sysChar)
 	lines = append(lines, headerLine(versionLine, "RINEX VERSION / TYPE"))
 
 	// PGM / RUN BY / DATE
@@ -98,6 +98,9 @@ func (rw *Writer3) writeHeaderWithSystems(systems map[gnss.Constellation]bool) e
 
 	// MARKER NUMBER
 	lines = append(lines, headerLine(truncStr(m.MarkerNumber, 60), "MARKER NUMBER"))
+
+	// MARKER TYPE
+	lines = append(lines, headerLine("", "MARKER TYPE"))
 
 	// OBSERVER / AGENCY
 	obsLine := fmt.Sprintf("%-20s%-40s",
@@ -154,6 +157,17 @@ func (rw *Writer3) writeHeaderWithSystems(systems map[gnss.Constellation]bool) e
 	// TIME OF LAST OBS
 	lines = append(lines, rw.formatTimeHeaderLine(m.LastEpoch, "TIME OF LAST OBS"))
 
+	// SYS / PHASE SHIFT — required for each system present
+	if systems != nil && systems[gnss.ConsGPS] || systems == nil {
+		lines = append(lines, headerLine("G", "SYS / PHASE SHIFT"))
+	}
+
+	// GLONASS SLOT / FRQ # — required even for GPS-only files
+	lines = append(lines, headerLine("  0", "GLONASS SLOT / FRQ #"))
+
+	// GLONASS COD/PHS/BIS — required even for GPS-only files
+	lines = append(lines, headerLine(" C1C    0.000 C1P    0.000 C2C    0.000 C2P    0.000", "GLONASS COD/PHS/BIS"))
+
 	// END OF HEADER
 	lines = append(lines, headerLine("", "END OF HEADER"))
 
@@ -167,8 +181,8 @@ func (rw *Writer3) writeHeaderWithSystems(systems map[gnss.Constellation]bool) e
 
 func (rw *Writer3) formatTimeHeaderLine(t gnss.GNSSTime, label string) string {
 	year, month, day, hour, min, sec := GNSSTimeToCalendar(t)
-	timeLine := fmt.Sprintf("  %4d  %2d  %2d  %2d  %2d %13.7f     GPS         ",
-		year, month, day, hour, min, sec)
+	timeLine := fmt.Sprintf("%6d%6d%6d%6d%6d%13.7f     %-3s",
+		year, month, day, hour, min, sec, "GPS")
 	return headerLine(timeLine, label)
 }
 

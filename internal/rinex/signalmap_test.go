@@ -23,7 +23,7 @@ func TestLookupMappingKnown(t *testing.T) {
 		r3pr   string
 	}{
 		{0, 0, "GPS L1 C/A", "C1C"},
-		{0, 3, "GPS L2 CL", "C2L"},
+		{0, 3, "GPS L2 CL", "C2X"},
 		{6, 0, "GLONASS L1 C/A", "C1C"},
 		{6, 2, "GLONASS L2 C/A", "C2C"},
 		{2, 0, "Galileo E1 C", "C1C"},
@@ -122,8 +122,7 @@ func TestRinex3ObsTypesGPS(t *testing.T) {
 	// Expect sorted; check a few known codes are present.
 	wantCodes := map[string]bool{
 		"C1C": true, "L1C": true, "D1C": true, "S1C": true,
-		"C2L": true, "L2L": true, "D2L": true, "S2L": true,
-		"C2S": true, "L2S": true,
+		"C2X": true, "L2X": true, "D2X": true, "S2X": true,
 	}
 	for _, c := range codes {
 		delete(wantCodes, c)

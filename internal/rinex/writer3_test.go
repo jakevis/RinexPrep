@@ -122,11 +122,11 @@ func TestWriter3_GPSOnlyHeader(t *testing.T) {
 		t.Fatal("empty output")
 	}
 	versionLine := lines[0]
-	if !strings.Contains(versionLine, "3.04") {
-		t.Errorf("version line missing 3.04: %q", versionLine)
+	if !strings.Contains(versionLine, "3.03") {
+		t.Errorf("version line missing 3.03: %q", versionLine)
 	}
-	if !strings.Contains(versionLine, "G (GPS)") {
-		t.Errorf("GPS-only header should contain 'G (GPS)': %q", versionLine)
+	if !strings.Contains(versionLine, "G: GPS") {
+		t.Errorf("GPS-only header should contain 'G: GPS': %q", versionLine)
 	}
 	if !strings.Contains(versionLine, "RINEX VERSION / TYPE") {
 		t.Errorf("version line missing label: %q", versionLine)
@@ -161,8 +161,8 @@ func TestWriter3_MixedHeader(t *testing.T) {
 	output := buf.String()
 	lines := strings.Split(output, "\n")
 	versionLine := lines[0]
-	if !strings.Contains(versionLine, "M (MIXED)") {
-		t.Errorf("mixed header should contain 'M (MIXED)': %q", versionLine)
+	if !strings.Contains(versionLine, "M: Mixed") {
+		t.Errorf("mixed header should contain 'M: Mixed': %q", versionLine)
 	}
 }
 
@@ -193,7 +193,7 @@ func TestWriter3_SysObsTypes(t *testing.T) {
 		if strings.Contains(line, "SYS / # / OBS TYPES") {
 			if strings.HasPrefix(line, "G") {
 				foundGPS = true
-				if !strings.Contains(line, "C1C") || !strings.Contains(line, "L2L") {
+				if !strings.Contains(line, "C1C") || !strings.Contains(line, "L2X") {
 					t.Errorf("GPS SYS line missing expected codes: %q", line)
 				}
 				if !strings.Contains(line, "  8 ") {
@@ -398,8 +398,8 @@ func TestWriter3_EndToEnd(t *testing.T) {
 	if !strings.Contains(output, "END OF HEADER") {
 		t.Error("missing END OF HEADER")
 	}
-	if !strings.Contains(output, "M (MIXED)") {
-		t.Error("should be M (MIXED) with GPS+GLONASS")
+	if !strings.Contains(output, "M: Mixed") {
+		t.Error("should be M: Mixed with GPS+GLONASS")
 	}
 	if !strings.Contains(output, "INTERVAL") {
 		t.Error("missing INTERVAL")
