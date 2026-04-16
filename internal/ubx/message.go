@@ -9,6 +9,10 @@ const (
 	ClassRXM  byte = 0x02
 	IDRawx    byte = 0x15
 
+	// NAV-SAT message class and ID.
+	ClassNAV  byte = 0x01
+	IDNavSat  byte = 0x35
+
 	// Header sizes.
 	rawxHeaderSize = 16
 	rawxMeasSize   = 32

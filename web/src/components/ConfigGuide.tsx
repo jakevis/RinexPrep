@@ -68,7 +68,7 @@ export default function ConfigGuide() {
               <strong>Constellations:</strong> GPS enabled (required), GLONASS/Galileo optional
             </li>
             <li>
-              <strong>Duration:</strong> Minimum 2 hours, 4+ hours recommended for best OPUS results
+              <strong>Duration:</strong> OPUS Static: 2+ hours (4+ recommended). OPUS Rapid Static: 15 min minimum
             </li>
             <li>
               <strong>Antenna:</strong> Use a known IGS antenna type if possible (e.g.,{' '}

@@ -6,10 +6,21 @@ interface SkyviewPlotProps {
 }
 
 const CONSTELLATION_COLORS: Record<string, string> = {
-  GPS: '#3b82f6',
-  GLONASS: '#ef4444',
-  Galileo: '#22c55e',
-  BeiDou: '#f97316',
+  G: '#3b82f6',    // GPS
+  R: '#ef4444',    // GLONASS
+  E: '#22c55e',    // Galileo
+  C: '#f97316',    // BeiDou
+  S: '#9ca3af',    // SBAS
+  J: '#a855f7',    // QZSS
+}
+
+const CONSTELLATION_NAMES: Record<string, string> = {
+  G: 'GPS',
+  R: 'GLONASS',
+  E: 'Galileo',
+  C: 'BeiDou',
+  S: 'SBAS',
+  J: 'QZSS',
 }
 
 const SIZE = 300
@@ -105,36 +116,49 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
             })}
 
             {/* Satellite dots */}
-            {satellites.map((sat) => {
+            {satellites.map((sat, i) => {
               const { x, y } = polarToXY(sat.azimuth, sat.elevation)
               const color = CONSTELLATION_COLORS[sat.system] ?? '#9ca3af'
               return (
-                <g key={sat.prn}>
-                  <circle cx={x} cy={y} r={5} fill={color} opacity={0.9} />
+                <circle key={`${sat.system}${sat.prn}-${i}`} cx={x} cy={y} r={3} fill={color} opacity={0.7} />
+              )
+            })}
+
+            {/* PRN labels (only for last occurrence of each satellite) */}
+            {(() => {
+              const lastPositions = new Map<string, SatPosition>()
+              satellites.forEach((sat) => {
+                lastPositions.set(`${sat.system}${sat.prn}`, sat)
+              })
+              return Array.from(lastPositions.values()).map((sat) => {
+                const { x, y } = polarToXY(sat.azimuth, sat.elevation)
+                const color = CONSTELLATION_COLORS[sat.system] ?? '#9ca3af'
+                return (
                   <text
+                    key={`label-${sat.system}${sat.prn}`}
                     x={x}
-                    y={y - 8}
+                    y={y - 6}
                     textAnchor="middle"
                     fontSize={7}
                     fontWeight={600}
                     fill={color}
                   >
-                    {sat.prn}
+                    {sat.system}{sat.prn}
                   </text>
-                </g>
-              )
-            })}
+                )
+              })
+            })()}
           </svg>
 
           {/* Legend */}
           <div className="flex flex-wrap justify-center gap-4 mt-3 text-xs">
-            {Object.entries(CONSTELLATION_COLORS).map(([name, color]) => (
-              <div key={name} className="flex items-center gap-1.5">
+            {Object.entries(CONSTELLATION_COLORS).map(([code, color]) => (
+              <div key={code} className="flex items-center gap-1.5">
                 <span
                   className="w-2.5 h-2.5 rounded-full inline-block"
                   style={{ backgroundColor: color }}
                 />
-                <span className="text-gray-600 dark:text-gray-400">{name}</span>
+                <span className="text-gray-600 dark:text-gray-400">{CONSTELLATION_NAMES[code] ?? code}</span>
               </div>
             ))}
           </div>

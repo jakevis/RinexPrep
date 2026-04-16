@@ -41,7 +41,7 @@ export default function QCSummary({ qc }: QCSummaryProps) {
   }
 
   const passed = !qc.failures || qc.failures.length === 0
-  const displayScore = Math.round(qc.score * 100)
+  const displayScore = Math.round(qc.score)
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">

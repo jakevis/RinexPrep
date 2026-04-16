@@ -13,8 +13,10 @@ import (
 type ParseStats struct {
 	TotalMessages  int
 	RawxMessages   int
+	NavSatMessages int
 	SkippedBytes   int64
 	ChecksumErrors int
+	NavSatData     []*NavSatEpoch
 }
 
 // Parse reads a UBX binary stream from r and returns decoded GNSS epochs.
@@ -100,6 +102,14 @@ func Parse(r io.Reader) ([]*gnss.Epoch, *ParseStats, error) {
 				continue
 			}
 			epochs = append(epochs, epoch)
+		}
+
+		if class == ClassNAV && id == IDNavSat {
+			stats.NavSatMessages++
+			navSat, err := decodeNavSat(payload)
+			if err == nil {
+				stats.NavSatData = append(stats.NavSatData, navSat)
+			}
 		}
 	}
 }

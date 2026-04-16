@@ -100,7 +100,7 @@ func (s *Server) parseAndPreview(job *Job) {
 	}
 	defer f.Close()
 
-	ptrs, _, err := ubx.Parse(f)
+	ptrs, stats, err := ubx.Parse(f)
 	if err != nil {
 		job.mu.Lock()
 		job.Status = StatusFailed
@@ -121,7 +121,7 @@ func (s *Server) parseAndPreview(job *Job) {
 	job.Progress = "Computing quality metrics..."
 	job.mu.Unlock()
 
-	preview := generatePreview(epochs)
+	preview := generatePreview(epochs, stats.NavSatData)
 
 	job.mu.Lock()
 	job.epochs = epochs
@@ -430,7 +430,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 // --- preview helpers ---
 
 // generatePreview builds PreviewData from parsed epochs.
-func generatePreview(epochs []gnss.Epoch) *PreviewData {
+func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *PreviewData {
 	if len(epochs) == 0 {
 		return &PreviewData{
 			Epochs:  []EpochSummary{},
@@ -507,24 +507,31 @@ func generatePreview(epochs []gnss.Epoch) *PreviewData {
 		Failures:      failures,
 	}
 
-	// Skyview: extract satellite info from the last epoch.
-	// TODO: UBX RAWX doesn't provide azimuth/elevation; using placeholder (0, 0).
-	lastEp := epochs[len(epochs)-1]
-	skyview := make([]SatPosition, 0, len(lastEp.Satellites))
-	for _, sat := range lastEp.Satellites {
-		bestSNR := 0.0
-		for _, sig := range sat.Signals {
-			if sig.SNR > bestSNR {
-				bestSNR = sig.SNR
+	// Build skyview arcs from NAV-SAT data (all epochs, subsampled).
+	var skyview []SatPosition
+	if len(navSatData) > 0 {
+		step := 1
+		if len(navSatData) > 100 {
+			step = len(navSatData) / 100
+		}
+		for i := 0; i < len(navSatData); i += step {
+			nav := navSatData[i]
+			for _, sat := range nav.Satellites {
+				if sat.Elevation <= 0 {
+					continue
+				}
+				skyview = append(skyview, SatPosition{
+					System:    gnss.Constellation(sat.GnssID).String(),
+					PRN:       int(sat.SvID),
+					Azimuth:   float64(sat.Azimuth),
+					Elevation: float64(sat.Elevation),
+					SNR:       float64(sat.CNO),
+				})
 			}
 		}
-		skyview = append(skyview, SatPosition{
-			System:    sat.Constellation.String(),
-			PRN:       int(sat.PRN),
-			Azimuth:   0,
-			Elevation: 0,
-			SNR:       bestSNR,
-		})
+	}
+	if skyview == nil {
+		skyview = []SatPosition{}
 	}
 
 	return &PreviewData{
