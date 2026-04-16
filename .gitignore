@@ -1,0 +1,41 @@
+# Binaries
+/rinexprep
+/bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.vscode/settings.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+/dist/
+/tmp/
+
+# Data (don't commit raw GNSS data)
+testdata/*.ubx
+testdata/*.obs
+testdata/*.nav
+!testdata/fixtures/
+
+# Docker
+docker-compose.override.yml
+
+# Environment
+.env
+.env.local
