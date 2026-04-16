@@ -103,6 +103,12 @@ function StatItem({ icon, label, value, color = 'neutral', tooltip }: StatItemPr
   )
 }
 
+function formatUTC(isoStr: string | undefined): string {
+  if (!isoStr) return '—'
+  const d = new Date(isoStr)
+  return d.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19) + ' UTC'
+}
+
 export default function SessionStats({ preview, trimStart, trimEnd }: SessionStatsProps) {
   const { epochs, qc, total_duration_sec: totalDur } = preview
 
@@ -128,16 +134,16 @@ export default function SessionStats({ preview, trimStart, trimEnd }: SessionSta
         <StatItem
           icon={<Clock className={iconSize} />}
           label="Start Time"
-          value={formatTime(epochs.length > 0 ? epochs[0].time_sec : 0)}
+          value={formatUTC(preview.start_time_utc)}
           color="neutral"
-          tooltip="Time of first observation epoch relative to session start"
+          tooltip={`First observation epoch${preview.start_time_utc ? '' : ' (UTC not available)'}`}
         />
         <StatItem
           icon={<Clock className={iconSize} />}
           label="End Time"
-          value={formatTime(epochs.length > 0 ? epochs[epochs.length - 1].time_sec : 0)}
+          value={formatUTC(preview.end_time_utc)}
           color="neutral"
-          tooltip="Time of last observation epoch relative to session start"
+          tooltip={`Last observation epoch${preview.end_time_utc ? '' : ' (UTC not available)'}`}
         />
         <StatItem
           icon={<Timer className={iconSize} />}

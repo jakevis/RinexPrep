@@ -508,15 +508,39 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 		Failures:      failures,
 	}
 
+	// Compute actual UTC start/end times from the first and last epochs.
+	var startTimeUTC, endTimeUTC string
+	if len(epochs) > 0 {
+		sNanos := epochs[0].Time.UnixNanos()
+		eNanos := epochs[len(epochs)-1].Time.UnixNanos()
+		if epochs[0].Time.LeapValid {
+			sNanos -= int64(epochs[0].Time.LeapSeconds) * 1e9
+		}
+		if epochs[len(epochs)-1].Time.LeapValid {
+			eNanos -= int64(epochs[len(epochs)-1].Time.LeapSeconds) * 1e9
+		}
+		startTimeUTC = time.Unix(0, sNanos).UTC().Format(time.RFC3339)
+		endTimeUTC = time.Unix(0, eNanos).UTC().Format(time.RFC3339)
+	}
+
 	// Build skyview arcs from NAV-SAT data (all epochs, subsampled).
+	startTOWNanos := epochs[0].Time.TOWNanos
 	var skyview []SatPosition
 	if len(navSatData) > 0 {
 		step := 1
 		if len(navSatData) > 100 {
 			step = len(navSatData) / 100
 		}
+		const weekNanos = int64(7 * 24 * 3600) * int64(1e9)
 		for i := 0; i < len(navSatData); i += step {
 			nav := navSatData[i]
+			navTOWNanos := int64(nav.ITOW) * int64(1e6)
+			diffNanos := navTOWNanos - startTOWNanos
+			// Handle GPS week rollover
+			if diffNanos < -weekNanos/2 {
+				diffNanos += weekNanos
+			}
+			timeSec := float64(diffNanos) / 1e9
 			for _, sat := range nav.Satellites {
 				if sat.Elevation <= 0 {
 					continue
@@ -527,6 +551,7 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 					Azimuth:   float64(sat.Azimuth),
 					Elevation: float64(sat.Elevation),
 					SNR:       float64(sat.CNO),
+					TimeSec:   timeSec,
 				})
 			}
 		}
@@ -616,11 +641,13 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 	}
 
 	return &PreviewData{
-		Epochs:    downsampleEpochs(summaries, 1000),
-		Skyview:   skyview,
-		AutoTrim:  trimBounds,
-		QC:        qc,
-		TotalSecs: totalSecs,
+		Epochs:       downsampleEpochs(summaries, 1000),
+		Skyview:      skyview,
+		AutoTrim:     trimBounds,
+		QC:           qc,
+		TotalSecs:    totalSecs,
+		StartTimeUTC: startTimeUTC,
+		EndTimeUTC:   endTimeUTC,
 	}
 }
 

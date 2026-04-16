@@ -43,11 +43,13 @@ type Job struct {
 
 // PreviewData contains parsed observation summary for the frontend.
 type PreviewData struct {
-	Epochs    []EpochSummary `json:"epochs"`
-	Skyview   []SatPosition  `json:"skyview"`
-	AutoTrim  TrimBounds     `json:"auto_trim"`
-	QC        QCSummary      `json:"qc"`
-	TotalSecs float64        `json:"total_duration_sec"`
+	Epochs       []EpochSummary `json:"epochs"`
+	Skyview      []SatPosition  `json:"skyview"`
+	AutoTrim     TrimBounds     `json:"auto_trim"`
+	QC           QCSummary      `json:"qc"`
+	TotalSecs    float64        `json:"total_duration_sec"`
+	StartTimeUTC string         `json:"start_time_utc"` // ISO 8601 format
+	EndTimeUTC   string         `json:"end_time_utc"`   // ISO 8601 format
 }
 
 // EpochSummary is a reduced view of one observation epoch.
@@ -65,6 +67,7 @@ type SatPosition struct {
 	Azimuth   float64 `json:"azimuth"`
 	Elevation float64 `json:"elevation"`
 	SNR       float64 `json:"snr"`
+	TimeSec   float64 `json:"time_sec"` // seconds from session start
 }
 
 // TrimBounds defines start/end trim points in seconds from session start.

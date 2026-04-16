@@ -37,6 +37,22 @@ function polarToXY(azDeg: number, elDeg: number): { x: number; y: number } {
 }
 
 export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
+  // Group satellites by (system, prn) to form arcs
+  const arcs = new Map<string, SatPosition[]>()
+  if (satellites) {
+    satellites.forEach(sat => {
+      const key = `${sat.system}${sat.prn}`
+      if (!arcs.has(key)) arcs.set(key, [])
+      arcs.get(key)!.push(sat)
+    })
+    // Sort each arc by time
+    arcs.forEach(positions => {
+      positions.sort((a, b) => (a.time_sec ?? 0) - (b.time_sec ?? 0))
+    })
+  }
+
+  const hasArcs = Array.from(arcs.values()).some(positions => positions.length > 1)
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -55,8 +71,11 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
             viewBox={`0 0 ${SIZE} ${SIZE}`}
             className="w-full max-w-[300px]"
           >
+            {/* Dark background for polar plot */}
+            <circle cx={CENTER} cy={CENTER} r={RADIUS} fill="#111827" />
+
             {/* Concentric elevation circles */}
-            {[0, 30, 60, 90].map((el) => {
+            {[0, 15, 30, 45, 60, 75, 90].map((el) => {
               const r = RADIUS * (1 - el / 90)
               return (
                 <circle
@@ -65,8 +84,7 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
                   cy={CENTER}
                   r={r}
                   fill="none"
-                  stroke="currentColor"
-                  className="text-gray-300 dark:text-gray-600"
+                  stroke="#374151"
                   strokeWidth={el === 0 ? 1.5 : 0.5}
                 />
               )
@@ -74,9 +92,9 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
 
             {/* Cross hairs */}
             <line x1={CENTER} y1={CENTER - RADIUS} x2={CENTER} y2={CENTER + RADIUS}
-              stroke="currentColor" className="text-gray-300 dark:text-gray-600" strokeWidth={0.5} />
+              stroke="#374151" strokeWidth={0.5} />
             <line x1={CENTER - RADIUS} y1={CENTER} x2={CENTER + RADIUS} y2={CENTER}
-              stroke="currentColor" className="text-gray-300 dark:text-gray-600" strokeWidth={0.5} />
+              stroke="#374151" strokeWidth={0.5} />
 
             {/* Cardinal labels */}
             {(['N', 'E', 'S', 'W'] as const).map((label, i) => {
@@ -99,7 +117,7 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
               )
             })}
 
-            {/* Elevation labels */}
+            {/* Elevation labels at 30° and 60° only */}
             {[30, 60].map((el) => {
               const r = RADIUS * (1 - el / 90)
               return (
@@ -107,7 +125,7 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
                   key={el}
                   x={CENTER + 3}
                   y={CENTER - r + 10}
-                  className="fill-gray-400 dark:fill-gray-500"
+                  fill="#6b7280"
                   fontSize={8}
                 >
                   {el}°
@@ -115,39 +133,71 @@ export default function SkyviewPlot({ satellites }: SkyviewPlotProps) {
               )
             })}
 
-            {/* Satellite dots */}
-            {satellites.map((sat, i) => {
-              const { x, y } = polarToXY(sat.azimuth, sat.elevation)
-              const color = CONSTELLATION_COLORS[sat.system] ?? '#9ca3af'
-              return (
-                <circle key={`${sat.system}${sat.prn}-${i}`} cx={x} cy={y} r={3} fill={color} opacity={0.7} />
-              )
-            })}
+            {/* Satellite arcs or dots */}
+            {hasArcs ? (
+              // Arc trail mode: draw polylines per satellite
+              Array.from(arcs.entries()).map(([key, positions]) => {
+                const color = CONSTELLATION_COLORS[positions[0].system] ?? '#9ca3af'
+                const points = positions
+                  .map(p => {
+                    const { x, y } = polarToXY(p.azimuth, p.elevation)
+                    return `${x},${y}`
+                  })
+                  .join(' ')
 
-            {/* PRN labels (only for last occurrence of each satellite) */}
-            {(() => {
-              const lastPositions = new Map<string, SatPosition>()
-              satellites.forEach((sat) => {
-                lastPositions.set(`${sat.system}${sat.prn}`, sat)
-              })
-              return Array.from(lastPositions.values()).map((sat) => {
-                const { x, y } = polarToXY(sat.azimuth, sat.elevation)
-                const color = CONSTELLATION_COLORS[sat.system] ?? '#9ca3af'
+                const last = positions[positions.length - 1]
+                const { x, y } = polarToXY(last.azimuth, last.elevation)
+
                 return (
-                  <text
-                    key={`label-${sat.system}${sat.prn}`}
-                    x={x}
-                    y={y - 6}
-                    textAnchor="middle"
-                    fontSize={7}
-                    fontWeight={600}
-                    fill={color}
-                  >
-                    {sat.system}{sat.prn}
-                  </text>
+                  <g key={key}>
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={1.5}
+                      opacity={0.6}
+                    />
+                    <circle cx={x} cy={y} r={4} fill={color} opacity={0.9} />
+                    <text
+                      x={x} y={y - 7}
+                      textAnchor="middle" fontSize={7} fontWeight={600}
+                      fill={color}
+                    >
+                      {last.system}{last.prn}
+                    </text>
+                  </g>
                 )
               })
-            })()}
+            ) : (
+              // Dot mode: single position per satellite (fallback)
+              <>
+                {satellites.map((sat, i) => {
+                  const { x, y } = polarToXY(sat.azimuth, sat.elevation)
+                  const color = CONSTELLATION_COLORS[sat.system] ?? '#9ca3af'
+                  return (
+                    <circle key={`${sat.system}${sat.prn}-${i}`} cx={x} cy={y} r={4} fill={color} opacity={0.9} />
+                  )
+                })}
+                {Array.from(arcs.entries()).map(([key, positions]) => {
+                  const sat = positions[positions.length - 1]
+                  const { x, y } = polarToXY(sat.azimuth, sat.elevation)
+                  const color = CONSTELLATION_COLORS[sat.system] ?? '#9ca3af'
+                  return (
+                    <text
+                      key={`label-${key}`}
+                      x={x}
+                      y={y - 7}
+                      textAnchor="middle"
+                      fontSize={7}
+                      fontWeight={600}
+                      fill={color}
+                    >
+                      {sat.system}{sat.prn}
+                    </text>
+                  )
+                })}
+              </>
+            )}
           </svg>
 
           {/* Legend */}

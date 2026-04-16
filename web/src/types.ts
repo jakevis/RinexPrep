@@ -20,6 +20,7 @@ export interface SatPosition {
   azimuth: number
   elevation: number
   snr: number
+  time_sec?: number
 }
 
 export interface QCSummary {
@@ -43,4 +44,6 @@ export interface PreviewData {
   auto_trim: AutoTrim
   qc: QCSummary
   total_duration_sec: number
+  start_time_utc?: string
+  end_time_utc?: string
 }
