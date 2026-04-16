@@ -226,24 +226,10 @@ export default function SessionStats({ preview, trimStart, trimEnd }: SessionSta
         />
         <StatItem
           icon={<Signal className={iconSize} />}
-          label="L1 Signals"
-          value={`${preview.l1_count ?? 0} sats`}
-          color="neutral"
-          tooltip="Number of unique satellites with L1 frequency observations."
-        />
-        <StatItem
-          icon={<Signal className={iconSize} />}
-          label="L2 Signals"
-          value={`${preview.l2_count ?? 0} sats`}
-          color={l2Color((preview.l2_count ?? 0) / Math.max(preview.l1_count ?? 1, 1) * 100)}
-          tooltip="Number of unique satellites with L2 frequency observations. Dual-frequency (L1+L2) is required by OPUS."
-        />
-        <StatItem
-          icon={<Signal className={iconSize} />}
-          label="Dual Frequency"
-          value={`${preview.dual_freq_count ?? 0} sats`}
-          color={gpsSatsColor(preview.dual_freq_count ?? 0)}
-          tooltip="Satellites with both L1 and L2 signals — essential for OPUS processing."
+          label="Dual Frequency (L1+L2)"
+          value={`${preview.dual_freq_count ?? 0} of ${preview.l1_count ?? 0} sats`}
+          color={l2Color((preview.dual_freq_count ?? 0) / Math.max(preview.l1_count ?? 1, 1) * 100)}
+          tooltip="Satellites with both L1 and L2 signals. OPUS requires dual-frequency data for precise positioning."
         />
         <StatItem
           icon={<Signal className={iconSize} />}

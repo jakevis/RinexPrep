@@ -8,18 +8,14 @@ interface SkyviewPlotProps {
 
 const FREQ_COLORS: Record<string, string> = {
   'L1+L2': '#22c55e',   // Green — dual frequency, ideal for OPUS
-  'L1+L5': '#a855f7',   // Purple
   'L1': '#3b82f6',      // Blue — single frequency
-  'L2': '#f97316',      // Orange
   'no_lock': '#ef4444', // Red — lock lost
   'none': '#9ca3af',    // Gray
 }
 
 const FREQ_LABELS: Record<string, string> = {
   'L1+L2': 'L1 + L2 (Dual)',
-  'L1+L5': 'L1 + L5',
   'L1': 'L1 Only',
-  'L2': 'L2 Only',
   'no_lock': 'Lock Lost',
   'none': 'No Signal',
 }
