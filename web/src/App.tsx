@@ -6,6 +6,8 @@ import SkyviewPlot from './components/SkyviewPlot'
 import TrimSliders from './components/TrimSliders'
 import QCSummary from './components/QCSummary'
 import DownloadPanel from './components/DownloadPanel'
+import SessionStats from './components/SessionStats'
+import ConfigGuide from './components/ConfigGuide'
 import * as api from './api'
 import type { AppState, PreviewData } from './types'
 import { Loader2 } from 'lucide-react'
@@ -153,6 +155,13 @@ function App() {
             {/* Controls row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div>
+                <SessionStats
+                  preview={preview}
+                  trimStart={trimStart}
+                  trimEnd={trimEnd}
+                />
+              </div>
+              <div>
                 <TrimSliders
                   totalDuration={preview.total_duration_sec}
                   trimStart={trimStart}
@@ -164,7 +173,11 @@ function App() {
               <div>
                 <QCSummary qc={preview.qc} />
               </div>
-              <div>
+            </div>
+
+            {/* Download row */}
+            <div className="flex justify-center">
+              <div className="w-full max-w-md">
                 <DownloadPanel
                   isReady={appState === 'ready'}
                   onProcess={handleProcess}
@@ -176,19 +189,19 @@ function App() {
           </>
         )}
 
-        {/* Idle state - show placeholders */}
+        {/* Idle state - show config guide and placeholders */}
         {appState === 'idle' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <SatelliteChart epochs={null} trimRange={null} autoTrim={null} />
+          <>
+            <ConfigGuide />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <SatelliteChart epochs={null} trimRange={null} autoTrim={null} />
+              </div>
+              <div>
+                <SkyviewPlot satellites={null} />
+              </div>
             </div>
-            <div>
-              <SkyviewPlot satellites={null} />
-            </div>
-            <div>
-              <QCSummary qc={null} />
-            </div>
-          </div>
+          </>
         )}
       </main>
 
