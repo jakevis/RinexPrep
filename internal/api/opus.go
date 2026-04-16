@@ -99,15 +99,28 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add form fields
-	writer.WriteField("email", req.Email)
+	// Add form fields — field names must match the OPUS upload form
+	writer.WriteField("email_address", req.Email)
 	writer.WriteField("ant_type", req.AntennaType)
-	writer.WriteField("height", fmt.Sprintf("%.4f", req.Height))
+	writer.WriteField("height", fmt.Sprintf("%.3f", req.Height))
+	// Hidden fields required by OPUS form
+	writer.WriteField("extend_code", "0")
+	writer.WriteField("xml_code", "0")
+	writer.WriteField("set_profile", "0")
+	writer.WriteField("delete_profile", "0")
+	writer.WriteField("share", "2")
+	writer.WriteField("submit_database", "0")
+	writer.WriteField("opusOption", "0")
 
 	writer.Close()
 
-	// Submit to OPUS
-	opusURL := "https://geodesy.noaa.gov/OPUS/upload.jsp"
+	// Submit to the correct OPUS CGI endpoint
+	var opusURL string
+	if req.Mode == "rapid" {
+		opusURL = "https://geodesy.noaa.gov/OPUS-cgi/OPUS/Upload/Opus-rsup.prl"
+	} else {
+		opusURL = "https://geodesy.noaa.gov/OPUS-cgi/OPUS/Upload/Opusup.prl"
+	}
 	opusReq, err := http.NewRequest("POST", opusURL, &buf)
 	if err != nil {
 		jsonError(w, "failed to create OPUS request", http.StatusInternalServerError)
