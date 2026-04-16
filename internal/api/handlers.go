@@ -18,7 +18,7 @@ import (
 	"github.com/jakevis/rinexprep/internal/ubx"
 )
 
-const maxUploadSize = 500 << 20 // 500 MB
+const maxUploadSize = 600 << 20 // 600 MB to accommodate multipart overhead on large files
 
 // handleUpload accepts a multipart file upload and creates a new job.
 // POST /api/v1/upload
@@ -33,7 +33,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		if err.Error() == "http: request body too large" {
-			jsonError(w, "file exceeds 500 MB limit", http.StatusRequestEntityTooLarge)
+			jsonError(w, "file exceeds 600 MB limit", http.StatusRequestEntityTooLarge)
 			return
 		}
 		jsonError(w, "invalid multipart form: "+err.Error(), http.StatusBadRequest)
@@ -492,12 +492,34 @@ func generatePreview(epochs []gnss.Epoch) *PreviewData {
 	}
 
 	return &PreviewData{
-		Epochs:    summaries,
+		Epochs:    downsampleEpochs(summaries, 1000),
 		Skyview:   skyview,
 		AutoTrim:  trimBounds,
 		QC:        qc,
 		TotalSecs: totalSecs,
 	}
+}
+
+// downsampleEpochs reduces epoch summaries to at most maxPoints for chart display.
+// Uses simple decimation — picks evenly spaced points.
+func downsampleEpochs(summaries []EpochSummary, maxPoints int) []EpochSummary {
+	if len(summaries) <= maxPoints {
+		return summaries
+	}
+	step := float64(len(summaries)) / float64(maxPoints)
+	result := make([]EpochSummary, 0, maxPoints)
+	for i := 0; i < maxPoints; i++ {
+		idx := int(float64(i) * step)
+		if idx >= len(summaries) {
+			idx = len(summaries) - 1
+		}
+		result = append(result, summaries[idx])
+	}
+	// Always include the last point
+	if len(result) > 0 {
+		result[len(result)-1] = summaries[len(summaries)-1]
+	}
+	return result
 }
 
 func computeAvgSNR(ep gnss.Epoch) float64 {

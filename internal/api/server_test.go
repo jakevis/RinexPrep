@@ -170,7 +170,7 @@ func TestDeleteNotFound(t *testing.T) {
 func TestUploadFileSizeLimit(t *testing.T) {
 	_, ts := newTestServer(t)
 
-	// Create a body that claims to be larger than 500 MB.
+	// Create a body that claims to be larger than 600 MB.
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	part, err := w.CreateFormFile("file", "huge.ubx")
@@ -178,10 +178,10 @@ func TestUploadFileSizeLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Write slightly over 500 MB. We write in 1 MB chunks to avoid allocating
+	// Write slightly over 600 MB. We write in 1 MB chunks to avoid allocating
 	// a single huge slice.
 	chunk := make([]byte, 1<<20) // 1 MB
-	for i := 0; i < 501; i++ {
+	for i := 0; i < 601; i++ {
 		if _, err := part.Write(chunk); err != nil {
 			t.Fatal(err)
 		}

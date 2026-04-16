@@ -1,6 +1,7 @@
 package ubx
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -20,14 +21,17 @@ type ParseStats struct {
 // It scans for sync bytes, validates checksums, and decodes RXM-RAWX messages.
 // Non-RAWX messages are counted but otherwise skipped.
 func Parse(r io.Reader) ([]*gnss.Epoch, *ParseStats, error) {
+	br := bufio.NewReaderSize(r, 64*1024) // 64KB read buffer
 	var epochs []*gnss.Epoch
 	stats := &ParseStats{}
 
 	buf := make([]byte, 1)
+	header := make([]byte, 4)
+	var frameBuf []byte
 
 	for {
 		// Scan for first sync byte (0xB5).
-		if _, err := io.ReadFull(r, buf); err != nil {
+		if _, err := io.ReadFull(br, buf); err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 				return epochs, stats, nil
 			}
@@ -39,7 +43,7 @@ func Parse(r io.Reader) ([]*gnss.Epoch, *ParseStats, error) {
 		}
 
 		// Read second sync byte.
-		if _, err := io.ReadFull(r, buf); err != nil {
+		if _, err := io.ReadFull(br, buf); err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 				return epochs, stats, nil
 			}
@@ -51,8 +55,7 @@ func Parse(r io.Reader) ([]*gnss.Epoch, *ParseStats, error) {
 		}
 
 		// Read class + id + length (4 bytes).
-		header := make([]byte, 4)
-		if _, err := io.ReadFull(r, header); err != nil {
+		if _, err := io.ReadFull(br, header); err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 				return epochs, stats, nil
 			}
@@ -63,25 +66,27 @@ func Parse(r io.Reader) ([]*gnss.Epoch, *ParseStats, error) {
 		id := header[1]
 		payloadLen := binary.LittleEndian.Uint16(header[2:4])
 
-		// Read payload + 2 checksum bytes.
-		frame := make([]byte, int(payloadLen)+2)
-		if _, err := io.ReadFull(r, frame); err != nil {
+		// Read payload + 2 checksum bytes, reusing buffer.
+		frameSize := int(payloadLen) + 2
+		if cap(frameBuf) < frameSize {
+			frameBuf = make([]byte, frameSize)
+		} else {
+			frameBuf = frameBuf[:frameSize]
+		}
+		if _, err := io.ReadFull(br, frameBuf); err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 				return epochs, stats, nil
 			}
 			return epochs, stats, err
 		}
 
-		payload := frame[:payloadLen]
-		ckA := frame[payloadLen]
-		ckB := frame[payloadLen+1]
+		payload := frameBuf[:payloadLen]
+		ckA := frameBuf[payloadLen]
+		ckB := frameBuf[payloadLen+1]
 
-		// Checksummed data is class + id + length + payload.
-		checksumData := make([]byte, 4+int(payloadLen))
-		copy(checksumData, header)
-		copy(checksumData[4:], payload)
-
-		if !ValidChecksum(checksumData, ckA, ckB) {
+		// Compute checksum over header + payload without allocating.
+		ckAExpected, ckBExpected := ChecksumParts(header, payload)
+		if ckAExpected != ckA || ckBExpected != ckB {
 			stats.ChecksumErrors++
 			continue
 		}
