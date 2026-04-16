@@ -580,16 +580,12 @@ func TestHalfCycleExcluded(t *testing.T) {
 		t.Error("C1 should still be present even with half-cycle")
 	}
 
-	// L1 carrier phase should be present (with LLI flag 4 for half-cycle)
+	// L1 carrier phase should be present (half-cycle flag ignored, matching Emlid behavior)
 	lines := strings.Split(strings.TrimRight(result, "\n"), "\n")
 	firstLine := lines[0]
 	// L1 is obs index 2, at positions 32-47
 	l1Field := firstLine[32:48]
 	if strings.TrimSpace(l1Field) == "" {
-		t.Error("L1 carrier phase should be present even with half-cycle (LLI flag set instead)")
-	}
-	// Check LLI flag is set (position 46 should be '4' for half-cycle)
-	if len(firstLine) >= 47 && firstLine[46] != '4' {
-		t.Errorf("L1 LLI flag should be 4 for half-cycle, got %q", string(firstLine[46]))
+		t.Error("L1 carrier phase should be present even with half-cycle")
 	}
 }
