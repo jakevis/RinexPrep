@@ -475,23 +475,36 @@ func generatePreview(epochs []gnss.Epoch) *PreviewData {
 	durHours := totalSecs / 3600
 
 	var warnings []string
+	var failures []string
+
 	if durHours < 2 {
-		warnings = append(warnings, "session shorter than 2 hours")
+		failures = append(failures, "Session shorter than 2 hours (OPUS minimum)")
+	} else if durHours < 4 {
+		warnings = append(warnings, "Session shorter than 4 hours (recommended for best results)")
 	}
+
 	if gpsMean < 4 {
-		warnings = append(warnings, "low average GPS satellite count")
+		failures = append(failures, fmt.Sprintf("Average GPS satellites %.1f < 4 minimum", gpsMean))
+	} else if gpsMean < 6 {
+		warnings = append(warnings, fmt.Sprintf("Average GPS satellites %.1f is marginal", gpsMean))
 	}
-	if l2Pct < 60 {
-		warnings = append(warnings, "low L2 signal coverage")
+
+	if l2Pct < 10 {
+		failures = append(failures, "No L2 signal coverage (dual-frequency required by OPUS)")
+	} else if l2Pct < 50 {
+		warnings = append(warnings, fmt.Sprintf("L2 coverage %.0f%% is low (>80%% recommended)", l2Pct))
+	} else if l2Pct < 80 {
+		warnings = append(warnings, fmt.Sprintf("L2 coverage %.0f%% is acceptable but >80%% recommended", l2Pct))
 	}
 
 	qc := QCSummary{
-		OPUSReady:     len(warnings) == 0,
+		OPUSReady:     len(failures) == 0,
 		Score:         computeScore(durHours, gpsMean, l2Pct),
 		DurationHours: durHours,
 		GPSSatsMean:   gpsMean,
 		L2CoveragePct: l2Pct,
 		Warnings:      warnings,
+		Failures:      failures,
 	}
 
 	// Skyview: extract satellite info from the last epoch.
@@ -566,7 +579,8 @@ func hasL2Signal(ep gnss.Epoch) bool {
 	for _, sat := range ep.Satellites {
 		if sat.Constellation == gnss.ConsGPS {
 			for _, sig := range sat.Signals {
-				if sig.FreqBand == 1 {
+				// GPS L2 signals: sigId 3 (L2 CL) or 4 (L2 CM)
+				if sig.FreqBand == 1 || sig.SigID == 3 || sig.SigID == 4 {
 					return true
 				}
 			}
@@ -577,20 +591,29 @@ func hasL2Signal(ep gnss.Epoch) bool {
 
 func computeScore(durHours, gpsMean, l2Pct float64) float64 {
 	score := 0.0
+	// Duration: 40% weight, full marks at 4+ hours
 	if durHours >= 4 {
-		score += 0.4
+		score += 40
+	} else if durHours >= 2 {
+		score += 20 + 20*(durHours-2)/2
 	} else {
-		score += 0.4 * (durHours / 4)
+		score += 20 * (durHours / 2)
 	}
+	// GPS satellites: 30% weight, full marks at 8+ mean
 	if gpsMean >= 8 {
-		score += 0.3
+		score += 30
+	} else if gpsMean >= 4 {
+		score += 15 + 15*(gpsMean-4)/4
 	} else {
-		score += 0.3 * (gpsMean / 8)
+		score += 15 * (gpsMean / 4)
 	}
+	// L2 coverage: 30% weight, full marks at 90%+
 	if l2Pct >= 90 {
-		score += 0.3
+		score += 30
+	} else if l2Pct >= 50 {
+		score += 15 + 15*(l2Pct-50)/40
 	} else {
-		score += 0.3 * (l2Pct / 90)
+		score += 15 * (l2Pct / 50)
 	}
 	return score
 }

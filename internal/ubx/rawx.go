@@ -8,6 +8,41 @@ import (
 	"github.com/jakevis/rinexprep/internal/gnss"
 )
 
+// sigIDToFreqBand maps UBX sigId to frequency band for each constellation.
+func sigIDToFreqBand(gnssID, sigID uint8) uint8 {
+	switch gnssID {
+	case 0: // GPS
+		switch sigID {
+		case 0, 5, 6:
+			return 0 // L1
+		case 3, 4:
+			return 1 // L2
+		}
+	case 2: // Galileo
+		switch sigID {
+		case 0, 1:
+			return 0 // E1
+		case 5, 6:
+			return 2 // E5b
+		}
+	case 3: // BeiDou
+		switch sigID {
+		case 0, 1:
+			return 0 // B1I
+		case 2, 3:
+			return 1 // B2I
+		}
+	case 6: // GLONASS
+		switch sigID {
+		case 0:
+			return 0 // L1
+		case 2:
+			return 1 // L2
+		}
+	}
+	return 0
+}
+
 // decodeRawx decodes an RXM-RAWX payload into a gnss.Epoch.
 func decodeRawx(payload []byte) (*gnss.Epoch, error) {
 	if len(payload) < rawxHeaderSize {
@@ -69,6 +104,7 @@ func decodeRawx(payload []byte) (*gnss.Epoch, error) {
 		doStdev := block[29]
 		trkStat := block[30]
 
+		_ = freqID
 		_ = prStdev
 		_ = cpStdev
 		_ = doStdev
@@ -76,7 +112,7 @@ func decodeRawx(payload []byte) (*gnss.Epoch, error) {
 		sig := gnss.Signal{
 			GnssID:       gnssID,
 			SigID:        sigID,
-			FreqBand:     freqID,
+			FreqBand:     sigIDToFreqBand(gnssID, sigID),
 			Pseudorange:  prMes,
 			CarrierPhase: cpMes,
 			Doppler:      float64(doMes),
