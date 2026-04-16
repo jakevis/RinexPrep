@@ -545,6 +545,9 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 				if sat.Elevation <= 0 {
 					continue
 				}
+				if gnss.Constellation(sat.GnssID) != gnss.ConsGPS {
+					continue
+				}
 				skyview = append(skyview, SatPosition{
 					System:    gnss.Constellation(sat.GnssID).String(),
 					PRN:       int(sat.SvID),
@@ -571,6 +574,9 @@ func generatePreview(epochs []gnss.Epoch, navSatData []*ubx.NavSatEpoch) *Previe
 
 		for i, ep := range epochs {
 			for _, sat := range ep.Satellites {
+				if sat.Constellation != gnss.ConsGPS {
+					continue
+				}
 				key := fmt.Sprintf("%s%d", sat.Constellation.String(), sat.PRN)
 				bestSNR := 0.0
 				for _, sig := range sat.Signals {
