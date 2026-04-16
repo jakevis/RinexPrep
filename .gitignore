@@ -54,3 +54,11 @@ docker-compose.override.yml
 *.pfx
 credentials.json
 token.json
+
+# Frontend build output (embedded at build time)
+frontend/dist/
+!frontend/dist/index.html
+
+# Node
+web/node_modules/
+web/dist/

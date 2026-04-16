@@ -4,7 +4,7 @@ GOFLAGS := -v
 LDFLAGS := -s -w
 BUILD_DIR := bin
 
-.PHONY: all build test lint clean docker run fmt vet
+.PHONY: all build test lint clean docker run fmt vet frontend-build docker-build docker-run
 
 all: lint test build
 
@@ -33,11 +33,17 @@ clean:
 coverage: test
 	$(GO) tool cover -html=coverage.out -o coverage.html
 
+# Frontend
+frontend-build:
+	cd web && npm ci && npm run build
+	mkdir -p frontend/dist
+	cp -r web/dist/* frontend/dist/
+
 docker-build:
 	docker build -t $(APP_NAME):latest .
 
 docker-run: docker-build
-	docker run --rm -p 8080:8080 $(APP_NAME):latest
+	docker run --rm -p 8080:8080 -v rinexprep-data:/data $(APP_NAME):latest
 
 run:
 	$(GO) run ./cmd/rinexprep $(ARGS)

@@ -2,28 +2,35 @@
 
 **Production-grade GNSS data processor:** ingest raw u-blox UBX binary data and produce OPUS-compatible RINEX observation files with normalization, quality control, and validation.
 
+> [!NOTE]
+> **🎷 Vibe-coded with reckless enthusiasm.** This project was conjured into existence through the power of AI-assisted development and an unwavering refusal to ship anything that looks like it belongs on a VT100 terminal. GNSS data processing is arcane enough without the UI making you feel like you're filing taxes in 1987. If you find a bug, it was probably vibing too hard.
+
 ## Status
 
 🚧 **Under active development** — see `docs/PLAN.md` for the roadmap.
 
-## Features (Planned)
+## Features
 
-- Stream-based UBX binary parser (RXM-RAWX, RXM-SFRBX)
-- GNSS-native time model (GPS week + TOW nanoseconds)
-- RINEX 2.11 output (OPUS primary target) and RINEX 3.x
-- 30-second epoch normalization with grid snapping
-- GPS-only constellation filtering for OPUS
-- Quality control engine with OPUS readiness scoring
-- REST API for job-based processing
-- CLI for local conversion
+- **Web UI** — drag-and-drop UBX upload, satellite visibility charts, skyview polar plot, interactive trim sliders, RINEX download
+- **Auto-trim** — detects survey setup/teardown instability and trims to clean 00/30s grid boundaries
+- **UBX parser** — stream-based RXM-RAWX binary decoder, no external tools (no RTKLIB, no convbin)
+- **RINEX 2.11 + 3.x** — OPUS-compatible output with correct L2C mapping (C2, never P2)
+- **30s normalization** — epoch grid snapping, GPS-only filtering, deduplication
+- **QC engine** — OPUS readiness scoring with satellite visibility and L2 coverage metrics
+- **CLI** — `rinexprep convert` for headless/scripted use
+- **Single Docker image** — Go backend + React frontend, one container, runs anywhere
 
 ## Quick Start
 
 ```bash
+# Docker (recommended)
+docker run --rm -p 8080:8080 rinexprep:latest
+# Open http://localhost:8080
+
 # CLI
 rinexprep convert --input raw.ubx --output session.obs --format rinex2 --interval 30
 
-# API
+# Dev server
 rinexprep serve --port 8080
 ```
 
@@ -33,18 +40,34 @@ rinexprep serve --port 8080
 # Use the dev container (recommended)
 # Open in VS Code → "Reopen in Container"
 
-# Or build locally (requires Go 1.22+)
+# Or build locally (requires Go 1.22+ and Node 22+)
 make build
 make test
 make lint
+
+# Frontend dev
+cd web && npm install && npm run dev
 ```
 
 ## Architecture
 
 ```
-UBX Binary → Parser → GNSS Model → Pipeline → RINEX Writer
-                                       ↓
-                                    QC Engine → Report
+                    ┌──────────────────────────────┐
+                    │         Web UI (React)        │
+                    │  upload · charts · trim · DL  │
+                    └──────────────┬───────────────┘
+                                  │ REST API
+                    ┌─────────────▼───────────────┐
+                    │        Go Backend            │
+                    │                              │
+  UBX Binary ──▶ Parser ──▶ Auto-Trim ──▶ Pipeline ──▶ RINEX Writer
+                    │            │           │              │
+                    │            ▼           ▼              │
+                    │        Instability   30s Grid         │
+                    │        Detection     Snap + Filter    │
+                    │                                      │
+                    │         QC Engine ──▶ OPUS Score      │
+                    └──────────────────────────────────────┘
 ```
 
 See `docs/PLAN.md` for full design documentation.
