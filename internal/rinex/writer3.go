@@ -33,6 +33,7 @@ type phaseArc struct {
 	halfc    bool    // previous half-cycle-subtracted state (for transition detection)
 	sigID    uint8   // signal ID of last emitted phase (to detect signal switches)
 	init     bool    // whether this arc has been initialized
+	slipFlag bool    // carry-forward: slip detected while phase was invalid
 }
 
 // Writer3 writes RINEX 3.04 observation files.
@@ -288,9 +289,9 @@ func (rw *Writer3) resolveObs3(sat gnss.SatObs, code string) (val float64, lli b
 			key := sat.SatID() + fmt.Sprintf("_%d", targetBand)
 			arc := rw.arcs[key]
 
-			// Cycle slip detection — match RTKLIB exactly:
-			// slip = lockt==0 || lockt < prev_lockt
-			// if halfc changed: slip
+			// Cycle slip detection — match RTKLIB-explorer:
+			// slip = lockt==0 || lockt < prev_lockt || halfc changed
+			// If slip detected while phase invalid, carry forward via slipFlag
 			var lliVal int
 			slip := sig.LockTimeSec == 0
 			if arc != nil && arc.init {
@@ -298,6 +299,10 @@ func (rw *Writer3) resolveObs3(sat gnss.SatObs, code string) (val float64, lli b
 					slip = true
 				}
 				if sig.SubHalfCyc != arc.halfc {
+					slip = true
+				}
+				// Carry-forward: slip was detected while phase was invalid
+				if arc.slipFlag {
 					slip = true
 				}
 			}
@@ -340,15 +345,29 @@ func (rw *Writer3) updateArcs(sat gnss.SatObs) {
 		if rw.arcs[key] == nil {
 			rw.arcs[key] = &phaseArc{}
 		}
-		// Only update lock time and halfc when phase is actually emitted
-		// (matches RTKLIB: only tracks state for valid carrier phase)
-		if phaseEmitted {
-			rw.arcs[key].lockTime = sig.LockTimeSec
-			rw.arcs[key].halfc = sig.SubHalfCyc
-			rw.arcs[key].sigID = sig.SigID
+		arc := rw.arcs[key]
+
+		// Detect slips even when phase is invalid (RTKLIB lockflag logic)
+		if arc.init {
+			slip := sig.LockTimeSec == 0 ||
+				sig.LockTimeSec < arc.lockTime ||
+				sig.SubHalfCyc != arc.halfc
+			if slip {
+				arc.slipFlag = true
+			}
 		}
-		rw.arcs[key].present = phaseEmitted
-		rw.arcs[key].init = true
+
+		// Update state — always track lock time and halfc for slip detection
+		arc.lockTime = sig.LockTimeSec
+		arc.halfc = sig.SubHalfCyc
+		arc.sigID = sig.SigID
+
+		// Clear slip flag when valid phase is emitted with slip applied
+		if phaseEmitted {
+			arc.slipFlag = false
+		}
+		arc.present = phaseEmitted
+		arc.init = true
 	}
 }
 
