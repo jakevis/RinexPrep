@@ -90,12 +90,29 @@ The u-blox F9P tracks L2C (civilian), not P-code. RINEX 2.11 output **must** use
 
 ### Carrier Phase Quality
 
-When the UBX half-cycle ambiguity flag is set (`HalfCycle=true && SubHalfCyc=false`), carrier phase observations are **suppressed** (not output). Pseudorange, Doppler, and SNR are unaffected. When `SubHalfCyc=true`, the receiver has corrected the ambiguity and phase is safe to output.
+Carrier phase with unresolved half-cycle ambiguity (`HalfCycle=true`) is **output with LLI bit 1 set** (matching RTKLIB LLI_HALFC), not suppressed. Pseudorange, Doppler, and SNR are unaffected.
 
-Both RINEX writers maintain **stateful LLI (loss-of-lock indicator) tracking** per satellite per frequency band across epochs. LLI=1 is set when:
-- Lock time = 0 (explicit receiver cycle slip)
-- Lock time decreases vs previous epoch (implicit cycle slip between observation intervals)
-- Carrier phase resumes after a gap or half-cycle suppression (new phase arc)
+Both RINEX writers maintain **stateful LLI (loss-of-lock indicator) tracking** per satellite per frequency band across epochs, with **lockflag carry-forward** (ported from RTKLIB-explorer). LLI flags:
+- Bit 0 (=1): cycle slip — lock time reset/decrease, halfc transition, cpStdev ≥ 15
+- Bit 1 (=2): half-cycle not resolved
+- Combined (=3): both conditions
+- Carry-forward: if slip detected while phase is invalid, flag applies when phase resumes
+
+### Receiver Clock Correction
+
+RTKLIB-style TADJ=0.1 time tag adjustment is applied before pipeline processing:
+- Epoch timestamps rounded to nearest 0.1s grid
+- Pseudorange corrected: `P -= toff × c`
+- Carrier phase corrected: `L -= toff × freq`
+- This removes ~6ms receiver clock bias from measurements
+
+### Carrier Phase Stdev Filtering
+
+UBX cpStdev field (4-bit, 0–15) controls phase validity:
+- Gen9 (F9P): phase invalid if cpStdev > 14 (`MAX_CPSTD_VALID_GEN9`)
+- Gen8 (M8T): phase invalid if cpStdev > 5
+- cpStdev ≥ 15 triggers cycle slip flag (`CPSTD_SLIP`)
+- Phase value of -0.5 is always rejected (RTKLIB convention)
 
 ### Missing Observations
 
@@ -141,7 +158,8 @@ Uses `log/slog`. JSON mode via `--json-logs` flag on `serve` command. No third-p
 | Setting | Default | Source |
 |---------|---------|--------|
 | Grid interval | 30s | `pipeline.DefaultNormalizeConfig()` |
-| Snap tolerance | 100ms | `pipeline.DefaultNormalizeConfig()` |
+| Snap tolerance | 10s | `pipeline.DefaultNormalizeConfig()` |
+| TADJ | 0.1s | `pipeline.ClockCorrConfig` |
 | Constellation | GPS-only | `pipeline.DefaultFilterConfig()` |
 | Min satellites/epoch | 4 | `pipeline.DefaultFilterConfig()` |
 | AutoTrim min sats | 5 | `pipeline.DefaultAutoTrimConfig()` |
