@@ -16,6 +16,7 @@ import (
 type JobStatus string
 
 const (
+	StatusUploading  JobStatus = "uploading"
 	StatusUploaded   JobStatus = "uploaded"
 	StatusParsing    JobStatus = "parsing"
 	StatusPreview    JobStatus = "preview"
@@ -29,22 +30,24 @@ type Job struct {
 	mu     sync.Mutex   // protects epochs and Preview
 	epochs []gnss.Epoch // parsed epochs, not serialized
 
-	ID          string     `json:"id"`
-	Status      JobStatus  `json:"status"`
-	Progress    string     `json:"progress,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	InputFile   string     `json:"input_file"`
-	InputSize   int64      `json:"input_size_bytes"`
-	OutputFiles []string   `json:"output_files,omitempty"`
-	Error       string     `json:"error,omitempty"`
-	Preview     *PreviewData `json:"preview,omitempty"`
-	TrimStart   *float64   `json:"trim_start_sec,omitempty"`
-	TrimEnd     *float64   `json:"trim_end_sec,omitempty"`
-	Format      string     `json:"format"`
-	ApproxX     float64    `json:"-"` // from NAV-PVT, not serialized
-	ApproxY     float64    `json:"-"`
-	ApproxZ     float64    `json:"-"`
+	ID           string     `json:"id"`
+	Status       JobStatus  `json:"status"`
+	Progress     string     `json:"progress,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	LastActivity time.Time  `json:"last_activity"`
+	CompletedAt  *time.Time `json:"completed_at,omitempty"`
+	InputFile    string     `json:"input_file"`
+	InputSize    int64      `json:"input_size_bytes"`
+	ExpectedSize int64      `json:"-"` // declared size for chunked uploads
+	OutputFiles  []string   `json:"output_files,omitempty"`
+	Error        string     `json:"error,omitempty"`
+	Preview      *PreviewData `json:"preview,omitempty"`
+	TrimStart    *float64   `json:"trim_start_sec,omitempty"`
+	TrimEnd      *float64   `json:"trim_end_sec,omitempty"`
+	Format       string     `json:"format"`
+	ApproxX      float64    `json:"-"` // from NAV-PVT, not serialized
+	ApproxY      float64    `json:"-"`
+	ApproxZ      float64    `json:"-"`
 }
 
 // PreviewData contains parsed observation summary for the frontend.
@@ -119,7 +122,8 @@ func NewJobStore(dir string) *JobStore {
 	return js
 }
 
-// cleanupLoop removes jobs older than 30 minutes every 5 minutes.
+// cleanupLoop removes idle jobs older than 30 minutes every 5 minutes.
+// Jobs that are actively uploading are excluded.
 func (js *JobStore) cleanupLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
@@ -127,8 +131,11 @@ func (js *JobStore) cleanupLoop() {
 		js.mu.Lock()
 		now := time.Now().UTC()
 		for id, job := range js.jobs {
-			if now.Sub(job.CreatedAt) > 30*time.Minute {
-				age := now.Sub(job.CreatedAt)
+			job.mu.Lock()
+			age := now.Sub(job.LastActivity)
+			isUploading := job.Status == StatusUploading
+			job.mu.Unlock()
+			if age > 30*time.Minute && !isUploading {
 				slog.Info("job_cleanup", "job_id", id, "age_sec", age.Seconds())
 				delete(js.jobs, id)
 				jobDir := filepath.Join(js.dir, id)
@@ -144,11 +151,12 @@ func (js *JobStore) Create(inputFile string, inputSize int64) *Job {
 	id := generateID()
 	now := time.Now().UTC()
 	job := &Job{
-		ID:        id,
-		Status:    StatusUploaded,
-		CreatedAt: now,
-		InputFile: inputFile,
-		InputSize: inputSize,
+		ID:           id,
+		Status:       StatusUploaded,
+		CreatedAt:    now,
+		LastActivity: now,
+		InputFile:    inputFile,
+		InputSize:    inputSize,
 	}
 	js.mu.Lock()
 	js.jobs[id] = job

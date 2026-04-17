@@ -30,11 +30,28 @@ func NewServer(port int, dataDir string) *Server {
 // SetupRoutes configures all API and frontend routes.
 func (s *Server) SetupRoutes() {
 	// CORS-aware API routes with request logging.
+	s.mux.HandleFunc("/api/v1/upload/", s.cors(requestLogger(s.routeUpload)))
 	s.mux.HandleFunc("/api/v1/upload", s.cors(requestLogger(s.handleUpload)))
 	s.mux.HandleFunc("/api/v1/jobs/", s.cors(requestLogger(s.routeJobs)))
 
 	// SPA frontend — catch-all.
 	s.mux.HandleFunc("/", s.serveFrontend)
+}
+
+// routeUpload dispatches /api/v1/upload/... to chunked upload handlers.
+func (s *Server) routeUpload(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+
+	switch {
+	case path == "/api/v1/upload/init":
+		s.handleUploadInit(w, r)
+	case hasSuffix(path, "/chunk"):
+		s.handleUploadChunk(w, r)
+	case hasSuffix(path, "/complete"):
+		s.handleUploadComplete(w, r)
+	default:
+		http.NotFound(w, r)
+	}
 }
 
 // routeJobs dispatches /api/v1/jobs/{id}/... to the correct handler.
@@ -67,7 +84,7 @@ func (s *Server) cors(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Upload-Offset")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
