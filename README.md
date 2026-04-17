@@ -39,7 +39,7 @@ The result is a RINEX file that OPUS processes without warnings and with full L1
 ### Docker (recommended)
 
 ```bash
-docker run --rm -p 8080:8080 rinexprep:latest
+docker run --rm -p 8080:8080 jakevis/rinexprep:latest
 # Open http://localhost:8080
 ```
 
