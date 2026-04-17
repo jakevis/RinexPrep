@@ -31,6 +31,7 @@ type phaseArc struct {
 	lockTime float64 // last emitted lock time
 	present  bool    // whether phase was emitted last epoch
 	halfc    bool    // previous half-cycle-subtracted state (for transition detection)
+	sigID    uint8   // signal ID of last emitted phase (to detect signal switches)
 	init     bool    // whether this arc has been initialized
 }
 
@@ -287,25 +288,22 @@ func (rw *Writer3) resolveObs3(sat gnss.SatObs, code string) (val float64, lli b
 			key := sat.SatID() + fmt.Sprintf("_%d", targetBand)
 			arc := rw.arcs[key]
 
-			// Cycle slip detection (RTKLIB-compatible)
+			// Cycle slip detection — match RTKLIB exactly:
+			// slip = lockt==0 || lockt < prev_lockt
+			// if halfc changed: slip
 			var lliVal int
 			slip := sig.LockTimeSec == 0
 			if arc != nil && arc.init {
 				if sig.LockTimeSec < arc.lockTime {
 					slip = true
 				}
-				if !arc.present {
-					slip = true // phase resuming after gap
-				}
-				// Half-cycle-subtracted state transition → slip
 				if sig.SubHalfCyc != arc.halfc {
 					slip = true
 				}
 			}
 			if slip {
-				lliVal |= 1 // LLI bit 0: cycle slip
+				lliVal |= 1
 			}
-			// Half-cycle not resolved → LLI bit 1
 			if sig.HalfCycle {
 				lliVal |= 2
 			}
@@ -342,9 +340,14 @@ func (rw *Writer3) updateArcs(sat gnss.SatObs) {
 		if rw.arcs[key] == nil {
 			rw.arcs[key] = &phaseArc{}
 		}
-		rw.arcs[key].lockTime = sig.LockTimeSec
+		// Only update lock time and halfc when phase is actually emitted
+		// (matches RTKLIB: only tracks state for valid carrier phase)
+		if phaseEmitted {
+			rw.arcs[key].lockTime = sig.LockTimeSec
+			rw.arcs[key].halfc = sig.SubHalfCyc
+			rw.arcs[key].sigID = sig.SigID
+		}
 		rw.arcs[key].present = phaseEmitted
-		rw.arcs[key].halfc = sig.SubHalfCyc
 		rw.arcs[key].init = true
 	}
 }

@@ -283,9 +283,12 @@ func (rw *Writer2) updateArcs2(sat gnss.SatObs) {
 		if rw.arcs[key] == nil {
 			rw.arcs[key] = &phaseArc{}
 		}
-		rw.arcs[key].lockTime = sig.LockTimeSec
+		if phaseEmitted {
+			rw.arcs[key].lockTime = sig.LockTimeSec
+			rw.arcs[key].halfc = sig.SubHalfCyc
+			rw.arcs[key].sigID = sig.SigID
+		}
 		rw.arcs[key].present = phaseEmitted
-		rw.arcs[key].halfc = sig.SubHalfCyc
 		rw.arcs[key].init = true
 	}
 }
@@ -300,18 +303,15 @@ func (rw *Writer2) computeLLI(sig *gnss.Signal, key string) int {
 		if sig.LockTimeSec < arc.lockTime {
 			slip = true
 		}
-		if !arc.present {
-			slip = true
-		}
 		if sig.SubHalfCyc != arc.halfc {
 			slip = true
 		}
 	}
 	if slip {
-		lli |= 1 // LLI bit 0: cycle slip
+		lli |= 1
 	}
 	if sig.HalfCycle {
-		lli |= 2 // LLI bit 1: half-cycle not resolved
+		lli |= 2
 	}
 	return lli
 }
