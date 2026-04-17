@@ -7,18 +7,19 @@
 
 ## Status
 
-🚧 **Under active development** — see `docs/PLAN.md` for the roadmap.
+✅ **MVP complete** — see `docs/PLAN.md` for the full design document.
 
 ## Features
 
 - **Web UI** — drag-and-drop UBX upload, satellite visibility charts, skyview polar plot, interactive trim sliders, RINEX download
 - **Auto-trim** — detects survey setup/teardown instability and trims to clean 00/30s grid boundaries
 - **UBX parser** — stream-based RXM-RAWX binary decoder, no external tools (no RTKLIB, no convbin)
-- **RINEX 2.11 + 3.x** — OPUS-grade output with correct L2C mapping (C2, never P2)
+- **RINEX 2.11 + 3.03** — OPUS-grade output with correct L2C mapping (C2, never P2)
 - **30s normalization** — epoch grid snapping, GPS-only filtering, deduplication
 - **QC engine** — OPUS readiness scoring with satellite visibility and L2 coverage metrics
-- **CLI** — `rinexprep convert` for headless/scripted use
-- **Single Docker image** — Go backend + React frontend, one container, runs anywhere
+- **OPUS submission** — submit directly to NGS OPUS from the web UI
+- **CLI** — `convert`, `batch`, and `serve` commands for headless/scripted use
+- **Single Docker image** — Go backend + embedded React frontend, one container, runs anywhere
 
 ## OPUS Quality
 
@@ -35,16 +36,43 @@ The result is a RINEX file that OPUS processes without warnings and with full L1
 
 ## Quick Start
 
+### Docker (recommended)
+
 ```bash
-# Docker (recommended)
 docker run --rm -p 8080:8080 rinexprep:latest
 # Open http://localhost:8080
+```
 
-# CLI
+### CLI
+
+```bash
+# Convert a single UBX file to RINEX 2.11
 rinexprep convert --input raw.ubx --output session.obs --format rinex2 --interval 30
 
-# Dev server
-rinexprep serve --port 8080
+# Convert to RINEX 3.03
+rinexprep convert --input raw.ubx --output session.rnx --format rinex3
+
+# Convert to both formats at once
+rinexprep convert --input raw.ubx --output session --format both
+
+# Batch convert a directory of UBX files
+rinexprep batch --input-dir ./ubx_files/ --output-dir ./rinex_out/ --format rinex3
+
+# Print version
+rinexprep version
+```
+
+### Web Server
+
+```bash
+# Start with defaults (port 8080, data in ./data/)
+rinexprep serve
+
+# Custom port and data directory
+rinexprep serve --port 3000 --data-dir /tmp/rinexprep
+
+# Structured JSON logging (for production)
+rinexprep serve --port 8080 --data-dir ./data --json-logs
 ```
 
 ## Development
@@ -53,13 +81,21 @@ rinexprep serve --port 8080
 # Use the dev container (recommended)
 # Open in VS Code → "Reopen in Container"
 
-# Or build locally (requires Go 1.22+ and Node 22+)
-make build
-make test
-make lint
+# Or build locally (requires Go 1.26+ and Node 22+)
+make build        # → bin/rinexprep
+make test         # go test -race -coverprofile ./...
+make test-short   # skip -race flag
+make lint         # golangci-lint run ./...
+make fmt          # go fmt + goimports
 
-# Frontend dev
-cd web && npm install && npm run dev
+# Frontend dev (hot reload)
+cd web && npm ci && npm run dev
+
+# Run the server locally
+go run ./cmd/rinexprep serve --port 8080 --data-dir ./data
+
+# Docker build
+make docker-build && make docker-run
 ```
 
 ## Architecture

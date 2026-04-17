@@ -412,46 +412,52 @@ options: {
 - Job retention: 24 hours then auto-delete
 - Rate limiting per IP
 - Input validation: UBX sync byte check before full parse
-- No user auth in MVP (add in v2)
+- No user auth — all data is transient, jobs auto-expire
 
 ---
 
 ## 8. Implementation Roadmap
 
-### Phase 1 — MVP: CLI UBX→RINEX2
+### Phase 1 — MVP: CLI UBX→RINEX2 ✅
 
-| Todo | Description |
-|------|-------------|
-| `ubx-parser` | Stream parser with sync/checksum/RAWX decode |
-| `gnss-time` | GNSSTime model with grid snapping |
-| `gnss-model` | Epoch/SatObs/Signal data structures |
-| `signal-map` | UBX sigId → RINEX 2.11 obs code table |
-| `rinex2-writer` | RINEX 2.11 header + observation writer |
-| `pipeline-normalize` | 30s grid snap + GPS filter + dedup |
-| `cli-convert` | `rinexprep convert` command |
-| `integration-test` | End-to-end with known-good UBX fixture |
+| Todo | Status | Description |
+|------|--------|-------------|
+| `ubx-parser` | ✅ | Stream parser with sync/checksum/RAWX decode |
+| `gnss-time` | ✅ | GNSSTime model with grid snapping |
+| `gnss-model` | ✅ | Epoch/SatObs/Signal data structures |
+| `signal-map` | ✅ | UBX sigId → RINEX 2.11 obs code table |
+| `rinex2-writer` | ✅ | RINEX 2.11 header + observation writer |
+| `pipeline-normalize` | ✅ | 30s grid snap + GPS filter + dedup |
+| `cli-convert` | ✅ | `rinexprep convert` command |
+| `integration-test` | ✅ | End-to-end with known-good UBX fixture |
 
-### Phase 2 — v1: QC + API
+### Phase 2 — v1: QC + API ✅
 
-| Todo | Description |
-|------|-------------|
-| `qc-engine` | Compute all QC metrics |
-| `opus-readiness` | OPUS compatibility scoring |
-| `metadata-layer` | User-provided + UBX-extracted metadata |
-| `api-server` | REST API with job model |
-| `rinex3-writer` | RINEX 3.x writer |
-| `cli-analyze` | `rinexprep analyze` command |
+| Todo | Status | Description |
+|------|--------|-------------|
+| `qc-engine` | ✅ | Compute all QC metrics |
+| `opus-readiness` | ✅ | OPUS compatibility scoring |
+| `metadata-layer` | ✅ | User-provided + UBX-extracted metadata |
+| `api-server` | ✅ | REST API with job model |
+| `rinex3-writer` | ✅ | RINEX 3.x writer |
+| `cli-analyze` | — | Deferred; QC available via API preview endpoint |
 
-### Phase 3 — v2: Production Hardening
+### Phase 3 — v2: Production Hardening ✅
 
-| Todo | Description |
-|------|-------------|
-| `sfrbx-parser` | Navigation message decode for .nav files |
-| `auth-api` | API authentication + rate limiting |
-| `object-storage` | S3/GCS backend for job files |
-| `cycle-slip` | Advanced cycle-slip detection |
-| `batch-processing` | Multiple file support |
-| `web-ui` | Simple upload/download interface |
+| Todo | Status | Description |
+|------|--------|-------------|
+| `sfrbx-parser` | ✅ | Navigation/ephemeris message decode |
+| `rate-limiting` | ✅ | Per-IP rate limiting |
+| `cycle-slip` | ✅ | Advanced cycle-slip detection (`pipeline/slipdetect.go`) |
+| `clock-corr` | ✅ | RTKLIB-style receiver clock correction (`pipeline/clockcorr.go`) |
+| `auto-trim` | ✅ | Startup/teardown instability removal (`pipeline/autotrim.go`) |
+| `batch-processing` | ✅ | Multi-file upload support |
+| `web-ui` | ✅ | React 19 + TypeScript + Vite + Tailwind CSS SPA |
+| `opus-submit` | ✅ | Direct OPUS submission endpoint |
+
+**Descoped:**
+- `auth-api` — No authentication; all data is transient with auto-expiring jobs
+- `object-storage` — Local filesystem only; transient data does not warrant cloud storage
 
 ---
 
@@ -464,42 +470,54 @@ RinexPrep/
 │   └── Dockerfile
 ├── cmd/
 │   └── rinexprep/
-│       └── main.go       # CLI entry point
+│       └── main.go       # CLI: convert, serve, version
 ├── internal/
 │   ├── ubx/              # UBX binary parser
 │   │   ├── parser.go     # Stream parser
 │   │   ├── rawx.go       # RXM-RAWX decoder
-│   │   ├── sfrbx.go      # RXM-SFRBX decoder
+│   │   ├── gpsephem.go   # GPS ephemeris decode
+│   │   ├── navsat.go     # NAV-SAT decoder
+│   │   ├── navpvt.go     # NAV-PVT decoder
+│   │   ├── message.go    # Message types
 │   │   └── checksum.go   # Fletcher-8
 │   ├── gnss/             # Core data model
 │   │   ├── time.go       # GNSSTime
 │   │   ├── observation.go # Epoch, SatObs, Signal
-│   │   ├── metadata.go   # Session metadata
-│   │   └── constellation.go
+│   │   └── metadata.go   # Session metadata
 │   ├── pipeline/         # Preprocessing
-│   │   ├── normalize.go  # Grid snapping
+│   │   ├── pipeline.go   # Orchestrator
+│   │   ├── autotrim.go   # Startup/teardown removal
+│   │   ├── trim.go       # Manual time window
 │   │   ├── filter.go     # Constellation filter
-│   │   └── trim.go       # Time window trim
+│   │   ├── normalize.go  # Grid snapping
+│   │   ├── clockcorr.go  # Receiver clock correction
+│   │   ├── slipdetect.go # Cycle-slip detection
+│   │   └── arcprune.go   # Arc pruning
 │   ├── rinex/            # RINEX writers
 │   │   ├── signalmap.go  # UBX→RINEX mapping table
+│   │   ├── timeconv.go   # Time conversion helpers
 │   │   ├── writer2.go    # RINEX 2.11
-│   │   └── writer3.go    # RINEX 3.x
+│   │   └── writer3.go    # RINEX 3.03
 │   ├── qc/               # Quality control
 │   │   ├── engine.go     # QC computation
-│   │   ├── opus.go       # OPUS readiness
-│   │   └── report.go     # JSON report
+│   │   └── opus.go       # OPUS readiness
 │   └── api/              # REST API
-│       ├── server.go
-│       ├── handlers.go
-│       └── jobs.go
+│       ├── server.go     # HTTP server + routing
+│       ├── handlers.go   # Upload, process, download
+│       ├── jobs.go       # Job lifecycle
+│       ├── opus.go       # OPUS submission
+│       ├── ratelimit.go  # Per-IP rate limiting
+│       ├── logging.go    # Request logging
+│       └── web.go        # Embedded SPA serving
+├── frontend/             # Go embed wrapper for SPA
+├── web/                  # React 19 + TypeScript + Vite + Tailwind
 ├── testdata/
-│   └── fixtures/         # Small test UBX snippets
+│   └── fixtures/         # Test UBX data
 ├── docs/
 │   └── PLAN.md           # This file
-├── Dockerfile            # Production image
+├── Dockerfile
 ├── Makefile
 ├── go.mod
-├── go.sum
 └── README.md
 ```
 
@@ -515,3 +533,5 @@ RinexPrep/
 6. **Metadata layer** — validates OPUS-required fields before writing, fails early
 7. **Single job API** — no multi-step upload/convert dance, reduces state bugs
 8. **Carrier-phase static detection** — pseudorange variance is too noisy per expert review
+9. **No auth gate** — all data is transient with auto-expiring jobs; no user accounts needed
+10. **No object storage** — local filesystem sufficient for transient processing workloads
