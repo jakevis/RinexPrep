@@ -74,6 +74,7 @@ function App() {
   const handleTrimChange = useCallback((start: number, end: number) => {
     setTrimStart(start)
     setTrimEnd(end)
+    setAppState((prev) => (prev === 'ready' ? 'preview' : prev))
   }, [])
 
   const handleProcess = useCallback(

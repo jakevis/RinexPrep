@@ -311,6 +311,9 @@ func (rw *Writer2) computeLLI(sig *gnss.Signal, key string) int {
 	arc := rw.arcs[key]
 
 	slip := sig.LockTimeSec == 0
+	if sig.CPStdev >= 15 {
+		slip = true
+	}
 	if arc != nil && arc.init {
 		if sig.LockTimeSec < arc.lockTime {
 			slip = true

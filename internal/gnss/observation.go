@@ -54,6 +54,7 @@ type Signal struct {
 
 	// Quality indicators
 	LockTimeSec float64 // continuous lock time in seconds
+	CPStdev     uint8   // carrier phase std-dev index (0-15)
 	PRValid     bool    // pseudorange valid
 	CPValid     bool    // carrier phase valid
 	HalfCycle   bool    // true when half-cycle ambiguity is UNresolved (UBX trkStat bit 2 CLEAR)

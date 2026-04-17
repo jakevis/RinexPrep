@@ -108,9 +108,11 @@ func decodeRawx(payload []byte) (*gnss.Epoch, error) {
 		_ = prStdev
 		_ = doStdev
 
-		// RTKLIB: invalidate carrier phase if cpStdev > 5 or value is -0.5
+		// RTKLIB-explorer: F9P (Gen9) uses cpStdev > 14, Gen8 uses > 5.
+		// F9P signals have sigId > 1 which flags Gen9 mode.
 		cpValid := trkStat&0x02 != 0
-		if cpStdev&0x0F > 5 || cpMes == -0.5 {
+		cpStdLimit := uint8(14) // Gen9 (F9P) default
+		if cpStdev&0x0F > cpStdLimit || cpMes == -0.5 {
 			cpValid = false
 			cpMes = 0.0
 		}
@@ -124,6 +126,7 @@ func decodeRawx(payload []byte) (*gnss.Epoch, error) {
 			Doppler:      float64(doMes),
 			SNR:          float64(cno),
 			LockTimeSec:  float64(locktime) / 1000.0,
+			CPStdev:      cpStdev & 0x0F,
 			PRValid:      trkStat&0x01 != 0,
 			CPValid:      cpValid,
 			HalfCycle:    trkStat&0x04 == 0, // bit 2 SET = resolved; we store true when UNresolved

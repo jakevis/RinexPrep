@@ -290,10 +290,13 @@ func (rw *Writer3) resolveObs3(sat gnss.SatObs, code string) (val float64, lli b
 			arc := rw.arcs[key]
 
 			// Cycle slip detection — match RTKLIB-explorer:
-			// slip = lockt==0 || lockt < prev_lockt || halfc changed
+			// slip = lockt==0 || lockt < prev_lockt || halfc changed || cpstd >= 15
 			// If slip detected while phase invalid, carry forward via slipFlag
 			var lliVal int
 			slip := sig.LockTimeSec == 0
+			if sig.CPStdev >= 15 {
+				slip = true // RTKLIB CPSTD_SLIP threshold
+			}
 			if arc != nil && arc.init {
 				if sig.LockTimeSec < arc.lockTime {
 					slip = true
@@ -301,7 +304,6 @@ func (rw *Writer3) resolveObs3(sat gnss.SatObs, code string) (val float64, lli b
 				if sig.SubHalfCyc != arc.halfc {
 					slip = true
 				}
-				// Carry-forward: slip was detected while phase was invalid
 				if arc.slipFlag {
 					slip = true
 				}
