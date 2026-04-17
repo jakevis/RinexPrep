@@ -2,6 +2,8 @@
 
 **Production-grade GNSS data processor:** ingest raw u-blox UBX binary data and produce OPUS-compatible RINEX observation files with normalization, quality control, and validation.
 
+**🌐 Try it now → [rinexprep.jv.ag](https://rinexprep.jv.ag)**
+
 > [!NOTE]
 > **🎷 Vibe-coded with reckless enthusiasm.** This project was conjured into existence through the power of AI-assisted development and an unwavering refusal to ship anything that looks like it belongs on a VT100 terminal. GNSS data processing is arcane enough without the UI making you feel like you're filing taxes in 1987. If you find a bug, it was probably vibing too hard.
 
@@ -36,7 +38,11 @@ The result is a RINEX file that OPUS processes without warnings and with full L1
 
 ## Quick Start
 
-### Docker (recommended)
+### Hosted
+
+Visit **[rinexprep.jv.ag](https://rinexprep.jv.ag)** — upload a UBX file, preview satellite visibility, trim, and download OPUS-ready RINEX. No install required.
+
+### Docker
 
 ```bash
 docker run --rm -p 8080:8080 jakevis/rinexprep:latest
