@@ -4,19 +4,21 @@ import "github.com/jakevis/rinexprep/internal/gnss"
 
 // Config holds settings for the full normalization pipeline.
 type Config struct {
-	Normalize NormalizeConfig
-	Filter    FilterConfig
-	Trim      TrimConfig
-	ArcPrune  ArcPruneConfig
+	Normalize  NormalizeConfig
+	Filter     FilterConfig
+	Trim       TrimConfig
+	ArcPrune   ArcPruneConfig
+	SlipDetect SlipDetectConfig
 }
 
 // DefaultConfig returns sensible defaults for OPUS processing.
 func DefaultConfig() Config {
 	return Config{
-		Normalize: DefaultNormalizeConfig(),
-		Filter:    DefaultFilterConfig(),
-		Trim:      TrimConfig{}, // no trimming by default
-		ArcPrune:  DefaultArcPruneConfig(),
+		Normalize:  DefaultNormalizeConfig(),
+		Filter:     DefaultFilterConfig(),
+		Trim:       TrimConfig{}, // no trimming by default
+		ArcPrune:   DefaultArcPruneConfig(),
+		SlipDetect: DefaultSlipDetectConfig(),
 	}
 }
 
@@ -46,8 +48,11 @@ func Process(epochs []gnss.Epoch, cfg Config) ([]gnss.Epoch, *Stats) {
 	stats.AfterFilter = len(filtered)
 	stats.DroppedLowSats = stats.AfterTrim - stats.AfterFilter
 
+	// Stage 2.5: advanced cycle slip detection (runs on 1Hz data for best resolution)
+	slipChecked := DetectAdvancedSlips(filtered, cfg.SlipDetect)
+
 	// Stage 3: normalize (snap + dedup)
-	normalized := Normalize(filtered, cfg.Normalize)
+	normalized := Normalize(slipChecked, cfg.Normalize)
 	stats.AfterNormalize = len(normalized)
 
 	// Stage 4: prune short boundary arcs (operates on normalized 30s epochs)
