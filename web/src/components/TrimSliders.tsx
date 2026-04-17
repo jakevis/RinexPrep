@@ -6,6 +6,7 @@ interface TrimSlidersProps {
   trimStart: number
   trimEnd: number
   autoTrim: AutoTrim | null
+  startTimeUTC?: string
   onTrimChange: (start: number, end: number) => void
 }
 
@@ -16,11 +17,20 @@ function formatTime(sec: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
+function formatUTC(startUTC: string | undefined, offsetSec: number): string {
+  if (!startUTC) return ''
+  const start = new Date(startUTC)
+  if (isNaN(start.getTime())) return ''
+  const adjusted = new Date(start.getTime() + offsetSec * 1000)
+  return adjusted.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')
+}
+
 export default function TrimSliders({
   totalDuration,
   trimStart,
   trimEnd,
   autoTrim,
+  startTimeUTC,
   onTrimChange,
 }: TrimSlidersProps) {
   const isAutoTrimmed =
@@ -63,9 +73,16 @@ export default function TrimSliders({
         <div>
           <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
             <span>Start</span>
-            <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-              {formatTime(trimStart)}
-            </span>
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                {formatTime(trimStart)}
+              </span>
+              {startTimeUTC && (
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono">
+                  {formatUTC(startTimeUTC, trimStart)}
+                </span>
+              )}
+            </div>
           </div>
           <input
             type="range"
@@ -85,9 +102,16 @@ export default function TrimSliders({
         <div>
           <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
             <span>End</span>
-            <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-              {formatTime(trimEnd)}
-            </span>
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                {formatTime(trimEnd)}
+              </span>
+              {startTimeUTC && (
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono">
+                  {formatUTC(startTimeUTC, trimEnd)}
+                </span>
+              )}
+            </div>
           </div>
           <input
             type="range"

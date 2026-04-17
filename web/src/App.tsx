@@ -183,6 +183,7 @@ function App() {
                   trimStart={trimStart}
                   trimEnd={trimEnd}
                   autoTrim={preview.auto_trim}
+                  startTimeUTC={preview.start_time_utc}
                   onTrimChange={handleTrimChange}
                 />
               </div>
