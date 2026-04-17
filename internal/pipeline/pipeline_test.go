@@ -76,7 +76,7 @@ func TestNormalize_SnapWithin50ms(t *testing.T) {
 }
 
 func TestNormalize_DropOutOfTolerance(t *testing.T) {
-	offset := int64(6_000_000_000) // 600ms, exceeds 500ms tolerance
+	offset := int64(11_000_000_000) // 600ms, exceeds 500ms tolerance
 	epochs := []gnss.Epoch{
 		makeEpoch(2300, grid30s(0), 6, 0),
 		makeEpoch(2300, grid30s(1)+offset, 6, 0),
@@ -257,7 +257,7 @@ func TestTrim_Empty(t *testing.T) {
 
 func TestProcess_EndToEnd(t *testing.T) {
 	offset50ms := int64(50_000_000)
-	offset600ms := int64(6_000_000_000) // exceeds 500ms tolerance
+	offset600ms := int64(11_000_000_000) // exceeds 500ms tolerance
 
 	start := gnss.GNSSTime{Week: 2300, TOWNanos: grid30s(1)}
 	end := gnss.GNSSTime{Week: 2300, TOWNanos: grid30s(5)}
