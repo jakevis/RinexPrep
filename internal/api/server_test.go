@@ -19,6 +19,7 @@ func newTestServer(t *testing.T) (*Server, *httptest.Server) {
 	dir := t.TempDir()
 	s := &Server{
 		port:     0,
+		version:  "test",
 		jobStore: NewJobStore(dir),
 		mux:      http.NewServeMux(),
 	}

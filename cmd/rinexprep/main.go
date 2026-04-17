@@ -18,6 +18,9 @@ import (
 	"github.com/jakevis/rinexprep/internal/ubx"
 )
 
+// Version is set at build time via ldflags. Falls back to "dev".
+var Version = "dev"
+
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
@@ -32,7 +35,7 @@ func main() {
 	case "serve":
 		runServe(os.Args[2:])
 	case "version":
-		fmt.Println("rinexprep v0.1.0-dev")
+		fmt.Println("rinexprep " + Version)
 	default:
 		printUsage()
 		os.Exit(1)
@@ -307,13 +310,13 @@ func runServe(args []string) {
 	}
 
 	slog.Info("RinexPrep starting",
-		"version", "0.1.0",
+		"version", Version,
 		"port", *port,
 		"data_dir", *dataDir,
 		"cleanup_interval", "30m",
 	)
 
-	srv := api.NewServer(*port, *dataDir)
+	srv := api.NewServer(*port, *dataDir, Version)
 
 	// Embed the React frontend if available.
 	if distFS, err := frontend.DistFS(); err == nil {

@@ -1,7 +1,8 @@
 APP_NAME := rinexprep
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 GO := go
 GOFLAGS := -v
-LDFLAGS := -s -w
+LDFLAGS := -s -w -X main.Version=$(VERSION)
 BUILD_DIR := bin
 
 .PHONY: all build test test-short lint clean coverage docker run fmt vet frontend-build docker-build docker-run dev
