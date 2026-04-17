@@ -106,8 +106,14 @@ func decodeRawx(payload []byte) (*gnss.Epoch, error) {
 
 		_ = freqID
 		_ = prStdev
-		_ = cpStdev
 		_ = doStdev
+
+		// RTKLIB: invalidate carrier phase if cpStdev > 5 or value is -0.5
+		cpValid := trkStat&0x02 != 0
+		if cpStdev&0x0F > 5 || cpMes == -0.5 {
+			cpValid = false
+			cpMes = 0.0
+		}
 
 		sig := gnss.Signal{
 			GnssID:       gnssID,
@@ -119,7 +125,7 @@ func decodeRawx(payload []byte) (*gnss.Epoch, error) {
 			SNR:          float64(cno),
 			LockTimeSec:  float64(locktime) / 1000.0,
 			PRValid:      trkStat&0x01 != 0,
-			CPValid:      trkStat&0x02 != 0,
+			CPValid:      cpValid,
 			HalfCycle:    trkStat&0x04 == 0, // bit 2 SET = resolved; we store true when UNresolved
 			SubHalfCyc:   trkStat&0x08 != 0,
 		}

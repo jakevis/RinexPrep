@@ -30,6 +30,8 @@ var constellationOrder = []gnss.Constellation{
 type phaseArc struct {
 	lockTime float64 // last emitted lock time
 	present  bool    // whether phase was emitted last epoch
+	halfc    bool    // previous half-cycle-subtracted state (for transition detection)
+	init     bool    // whether this arc has been initialized
 }
 
 // Writer3 writes RINEX 3.04 observation files.
@@ -280,20 +282,36 @@ func (rw *Writer3) resolveObs3(sat gnss.SatObs, code string) (val float64, lli b
 			val = sig.Pseudorange
 		}
 	case 'L':
-		// Suppress carrier phase when half-cycle ambiguity is unresolved
-		if sig.HalfCycle && !sig.SubHalfCyc {
-			return
-		}
 		if sig.CPValid && sig.CarrierPhase != 0 {
 			val = sig.CarrierPhase
 			key := sat.SatID() + fmt.Sprintf("_%d", targetBand)
 			arc := rw.arcs[key]
-			if sig.LockTimeSec == 0 {
-				lli = '1' // explicit cycle slip from receiver
-			} else if arc != nil && sig.LockTimeSec < arc.lockTime {
-				lli = '1' // lock time decreased → cycle slip between epochs
-			} else if arc != nil && !arc.present {
-				lli = '1' // phase resuming after gap/suppression
+
+			// Cycle slip detection (RTKLIB-compatible)
+			var lliVal int
+			slip := sig.LockTimeSec == 0
+			if arc != nil && arc.init {
+				if sig.LockTimeSec < arc.lockTime {
+					slip = true
+				}
+				if !arc.present {
+					slip = true // phase resuming after gap
+				}
+				// Half-cycle-subtracted state transition → slip
+				if sig.SubHalfCyc != arc.halfc {
+					slip = true
+				}
+			}
+			if slip {
+				lliVal |= 1 // LLI bit 0: cycle slip
+			}
+			// Half-cycle not resolved → LLI bit 1
+			if sig.HalfCycle {
+				lliVal |= 2
+			}
+
+			if lliVal > 0 {
+				lli = byte('0' + lliVal)
 			}
 		}
 	case 'D':
@@ -320,13 +338,14 @@ func (rw *Writer3) updateArcs(sat gnss.SatObs) {
 			}
 			continue
 		}
-		phaseEmitted := sig.CPValid && sig.CarrierPhase != 0 &&
-			!(sig.HalfCycle && !sig.SubHalfCyc)
+		phaseEmitted := sig.CPValid && sig.CarrierPhase != 0
 		if rw.arcs[key] == nil {
 			rw.arcs[key] = &phaseArc{}
 		}
 		rw.arcs[key].lockTime = sig.LockTimeSec
 		rw.arcs[key].present = phaseEmitted
+		rw.arcs[key].halfc = sig.SubHalfCyc
+		rw.arcs[key].init = true
 	}
 }
 

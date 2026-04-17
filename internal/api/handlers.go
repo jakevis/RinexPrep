@@ -120,6 +120,9 @@ func (s *Server) parseAndPreview(job *Job) {
 
 	epochs := derefEpochs(ptrs)
 
+	// Apply receiver clock correction before any processing.
+	epochs = pipeline.CorrectClockBias(epochs, pipeline.ClockCorrConfig{TADJ: 0.1})
+
 	job.mu.Lock()
 	job.Progress = "Computing quality metrics..."
 	job.mu.Unlock()

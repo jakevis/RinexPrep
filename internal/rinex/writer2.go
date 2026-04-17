@@ -213,32 +213,14 @@ func (rw *Writer2) formatObsLines(sat gnss.SatObs) string {
 	if l2 != nil && l2.PRValid {
 		obs[1] = obsVal{l2.Pseudorange, true, 0, snrToSS(l2.SNR)}
 	}
-	// L1: carrier phase — suppress when half-cycle ambiguity is unresolved
-	if l1 != nil && l1.CPValid && !(l1.HalfCycle && !l1.SubHalfCyc) {
-		lli := 0
-		key := sat.SatID() + "_0"
-		arc := rw.arcs[key]
-		if l1.LockTimeSec == 0 {
-			lli |= 1
-		} else if arc != nil && l1.LockTimeSec < arc.lockTime {
-			lli |= 1
-		} else if arc != nil && !arc.present {
-			lli |= 1
-		}
+	// L1: carrier phase — RTKLIB-compatible LLI handling
+	if l1 != nil && l1.CPValid {
+		lli := rw.computeLLI(l1, sat.SatID()+"_0")
 		obs[2] = obsVal{l1.CarrierPhase, true, lli, snrToSS(l1.SNR)}
 	}
-	// L2: carrier phase — suppress when half-cycle ambiguity is unresolved
-	if l2 != nil && l2.CPValid && !(l2.HalfCycle && !l2.SubHalfCyc) {
-		lli := 0
-		key := sat.SatID() + "_1"
-		arc := rw.arcs[key]
-		if l2.LockTimeSec == 0 {
-			lli |= 1
-		} else if arc != nil && l2.LockTimeSec < arc.lockTime {
-			lli |= 1
-		} else if arc != nil && !arc.present {
-			lli |= 1
-		}
+	// L2: carrier phase — RTKLIB-compatible LLI handling
+	if l2 != nil && l2.CPValid {
+		lli := rw.computeLLI(l2, sat.SatID()+"_1")
 		obs[3] = obsVal{l2.CarrierPhase, true, lli, snrToSS(l2.SNR)}
 	}
 	// D1: Doppler
@@ -297,14 +279,41 @@ func (rw *Writer2) updateArcs2(sat gnss.SatObs) {
 			}
 			continue
 		}
-		phaseEmitted := sig.CPValid && sig.CarrierPhase != 0 &&
-			!(sig.HalfCycle && !sig.SubHalfCyc)
+		phaseEmitted := sig.CPValid && sig.CarrierPhase != 0
 		if rw.arcs[key] == nil {
 			rw.arcs[key] = &phaseArc{}
 		}
 		rw.arcs[key].lockTime = sig.LockTimeSec
 		rw.arcs[key].present = phaseEmitted
+		rw.arcs[key].halfc = sig.SubHalfCyc
+		rw.arcs[key].init = true
 	}
+}
+
+// computeLLI returns the RTKLIB-compatible LLI value for a carrier phase signal.
+func (rw *Writer2) computeLLI(sig *gnss.Signal, key string) int {
+	lli := 0
+	arc := rw.arcs[key]
+
+	slip := sig.LockTimeSec == 0
+	if arc != nil && arc.init {
+		if sig.LockTimeSec < arc.lockTime {
+			slip = true
+		}
+		if !arc.present {
+			slip = true
+		}
+		if sig.SubHalfCyc != arc.halfc {
+			slip = true
+		}
+	}
+	if slip {
+		lli |= 1 // LLI bit 0: cycle slip
+	}
+	if sig.HalfCycle {
+		lli |= 2 // LLI bit 1: half-cycle not resolved
+	}
+	return lli
 }
 
 // bestSignalForBand returns the best signal for a given frequency band.

@@ -82,14 +82,17 @@ func runConvert(args []string) {
 		fmt.Fprintln(os.Stderr, "warning: no RAWX epochs found in input file")
 	}
 
-	// 2. Auto-trim startup/teardown instability.
+	// 2. Apply receiver clock correction (RTKLIB -TADJ=0.1 equivalent).
+	epochs = pipeline.CorrectClockBias(epochs, pipeline.ClockCorrConfig{TADJ: 0.1})
+
+	// 3. Auto-trim startup/teardown instability.
 	autoTrimmed, trimResult := pipeline.AutoTrim(epochs, pipeline.DefaultAutoTrimConfig())
 	if len(autoTrimmed) > 0 {
 		fmt.Fprintf(os.Stderr, "Auto-trim: %s\n", trimResult.Reason)
 		epochs = autoTrimmed
 	}
 
-	// 3. Run the normalization pipeline.
+	// 4. Run the normalization pipeline.
 	cfg := pipeline.DefaultConfig()
 	cfg.Normalize.IntervalSec = *interval
 	cfg.Trim = pipeline.TrimConfig{} // trimming already applied
