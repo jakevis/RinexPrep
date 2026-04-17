@@ -352,7 +352,7 @@ function App() {
       <footer className="text-xs text-gray-400 dark:text-gray-600 py-6 border-t border-gray-200 dark:border-gray-800 px-4">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <span>RinexPrep — Open-source GNSS processing tool</span>
-          {version && <span>{version}</span>}
+          {version && <a href={`https://github.com/jakevis/RinexPrep/releases/tag/${version}`} target="_blank" rel="noopener noreferrer" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">{version}</a>}
         </div>
       </footer>
     </div>
