@@ -1,16 +1,6 @@
 import { Satellite } from 'lucide-react'
-import { useEffect, useState } from 'react'
 
 export default function Header() {
-  const [version, setVersion] = useState<string>('')
-
-  useEffect(() => {
-    fetch('/api/v1/version')
-      .then(r => r.json())
-      .then(d => setVersion(d.version))
-      .catch(() => {})
-  }, [])
-
   return (
     <header className="border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-10">
       <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -24,7 +14,6 @@ export default function Header() {
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               GNSS data processor for OPUS-compatible RINEX
-              {version && <span className="ml-1.5 text-gray-400 dark:text-gray-500">v{version}</span>}
             </p>
           </div>
         </div>

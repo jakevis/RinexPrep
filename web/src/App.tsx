@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import Header from './components/Header'
 import UploadZone from './components/UploadZone'
 import JobList from './components/JobList'
@@ -21,6 +21,14 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [progressMessage, setProgressMessage] = useState<string | null>(null)
   const [expandedPanel, setExpandedPanel] = useState<string | null>(null)
+  const [version, setVersion] = useState<string>('')
+
+  useEffect(() => {
+    fetch('/api/v1/version')
+      .then(r => r.json())
+      .then(d => setVersion(d.version))
+      .catch(() => {})
+  }, [])
 
   const activeJob = useMemo(
     () => jobs.find((j) => j.id === activeJobId) ?? null,
@@ -341,8 +349,11 @@ function App() {
         )}
       </main>
 
-      <footer className="text-center text-xs text-gray-400 dark:text-gray-600 py-6 border-t border-gray-200 dark:border-gray-800">
-        RinexPrep — Open-source GNSS processing tool
+      <footer className="text-xs text-gray-400 dark:text-gray-600 py-6 border-t border-gray-200 dark:border-gray-800 px-4">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <span>RinexPrep — Open-source GNSS processing tool</span>
+          {version && <span>{version}</span>}
+        </div>
       </footer>
     </div>
   )
