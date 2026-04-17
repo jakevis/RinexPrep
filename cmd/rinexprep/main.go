@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/tabwriter"
+	"time"
 
 	"github.com/jakevis/rinexprep/frontend"
 	"github.com/jakevis/rinexprep/internal/api"
@@ -25,6 +27,8 @@ func main() {
 	switch os.Args[1] {
 	case "convert":
 		runConvert(os.Args[2:])
+	case "batch":
+		runBatch(os.Args[2:])
 	case "serve":
 		runServe(os.Args[2:])
 	case "version":
@@ -33,6 +37,128 @@ func main() {
 		printUsage()
 		os.Exit(1)
 	}
+}
+
+// convertResult holds the outcome of processing a single UBX file.
+type convertResult struct {
+	InputFile  string
+	OutputFile string
+	Epochs     int
+	Duration   time.Duration
+	ObsCount   int
+	Err        error
+}
+
+// processUBXFile runs the full pipeline on a single UBX file and writes RINEX output.
+func processUBXFile(inputPath, outputPath, format string, interval int) convertResult {
+	result := convertResult{InputFile: inputPath, OutputFile: outputPath}
+
+	// 1. Open and parse the UBX file.
+	f, err := os.Open(inputPath)
+	if err != nil {
+		result.Err = fmt.Errorf("opening file: %w", err)
+		return result
+	}
+	defer f.Close()
+
+	epochPtrs, parseStats, err := ubx.Parse(f)
+	if err != nil {
+		result.Err = fmt.Errorf("parsing UBX: %w", err)
+		return result
+	}
+
+	epochs := make([]gnss.Epoch, len(epochPtrs))
+	for i, p := range epochPtrs {
+		epochs[i] = *p
+	}
+
+	if len(epochs) == 0 {
+		result.Err = fmt.Errorf("no RAWX epochs found in input file")
+		return result
+	}
+
+	// 2. Apply receiver clock correction (RTKLIB -TADJ=0.1 equivalent).
+	epochs = pipeline.CorrectClockBias(epochs, pipeline.ClockCorrConfig{TADJ: 0.1})
+
+	// 3. Auto-trim startup/teardown instability.
+	autoTrimmed, _ := pipeline.AutoTrim(epochs, pipeline.DefaultAutoTrimConfig())
+	if len(autoTrimmed) > 0 {
+		epochs = autoTrimmed
+	}
+
+	// 4. Run the normalization pipeline.
+	cfg := pipeline.DefaultConfig()
+	cfg.Normalize.IntervalSec = interval
+	cfg.Trim = pipeline.TrimConfig{}
+	processed, _ := pipeline.Process(epochs, cfg)
+
+	// 5. Build output metadata.
+	meta := gnss.Metadata{
+		MarkerName:   "UNKNOWN",
+		MarkerNumber: "UNKNOWN",
+		ReceiverType: "UNKNOWN",
+		AntennaType:  "UNKNOWN NONE",
+		Observer:     "UNKNOWN",
+		Agency:       "UNKNOWN",
+		Interval:     float64(interval),
+	}
+	if len(processed) > 0 {
+		meta.FirstEpoch = processed[0].Time
+		meta.LastEpoch = processed[len(processed)-1].Time
+	}
+	if parseStats.BestPosition != nil {
+		meta.ApproxX, meta.ApproxY, meta.ApproxZ = parseStats.BestPosition.ECEF()
+	}
+	meta.Validate()
+
+	// 6. Write output file(s).
+	switch format {
+	case "rinex2":
+		if err := writeFile(outputPath, func(w *os.File) error {
+			return rinex.WriteRinex2(w, meta, processed)
+		}); err != nil {
+			result.Err = fmt.Errorf("writing RINEX 2: %w", err)
+			return result
+		}
+	case "rinex3":
+		if err := writeFile(outputPath, func(w *os.File) error {
+			return rinex.WriteRinex3(w, meta, processed)
+		}); err != nil {
+			result.Err = fmt.Errorf("writing RINEX 3: %w", err)
+			return result
+		}
+	case "both":
+		base := strings.TrimSuffix(outputPath, filepath.Ext(outputPath))
+		obsPath := base + ".obs"
+		rnxPath := base + ".rnx"
+		if err := writeFile(obsPath, func(w *os.File) error {
+			return rinex.WriteRinex2(w, meta, processed)
+		}); err != nil {
+			result.Err = fmt.Errorf("writing RINEX 2: %w", err)
+			return result
+		}
+		if err := writeFile(rnxPath, func(w *os.File) error {
+			return rinex.WriteRinex3(w, meta, processed)
+		}); err != nil {
+			result.Err = fmt.Errorf("writing RINEX 3: %w", err)
+			return result
+		}
+	}
+
+	// Populate result stats.
+	result.Epochs = len(processed)
+	if len(processed) >= 2 {
+		first := processed[0].Time.UnixNanos()
+		last := processed[len(processed)-1].Time.UnixNanos()
+		result.Duration = time.Duration(last - first)
+	}
+	for _, ep := range processed {
+		for _, sat := range ep.Satellites {
+			result.ObsCount += len(sat.Signals)
+		}
+	}
+
+	return result
 }
 
 func runConvert(args []string) {
@@ -56,122 +182,104 @@ func runConvert(args []string) {
 		os.Exit(1)
 	}
 
-	// 1. Open and parse the UBX file.
-	f, err := os.Open(*input)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-	defer f.Close()
-
-	epochPtrs, parseStats, err := ubx.Parse(f)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error parsing UBX: %v\n", err)
+	result := processUBXFile(*input, *output, *format, *interval)
+	if result.Err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", result.Err)
 		os.Exit(1)
 	}
 
-	epochs := make([]gnss.Epoch, len(epochPtrs))
-	for i, p := range epochPtrs {
-		epochs[i] = *p
+	fmt.Fprintf(os.Stderr, "Output: %s\n", *output)
+	fmt.Fprintf(os.Stderr, "\n--- Processing Summary ---\n")
+	fmt.Fprintf(os.Stderr, "  Epochs:   %d\n", result.Epochs)
+	fmt.Fprintf(os.Stderr, "  Duration: %s\n", result.Duration.Truncate(time.Second))
+	fmt.Fprintf(os.Stderr, "  Obs:      %d\n", result.ObsCount)
+}
+
+func runBatch(args []string) {
+	fs := flag.NewFlagSet("batch", flag.ExitOnError)
+	inputDir := fs.String("input-dir", "", "directory containing .ubx files (required)")
+	outputDir := fs.String("output-dir", "", "directory for RINEX output (required)")
+	format := fs.String("format", "rinex3", "output format: rinex2, rinex3, both")
+	interval := fs.Int("interval", 30, "observation interval in seconds")
+	fs.Parse(args)
+
+	if *inputDir == "" || *outputDir == "" {
+		fmt.Fprintln(os.Stderr, "error: --input-dir and --output-dir are required")
+		fs.Usage()
+		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "Parsed %d UBX messages (%d RAWX → %d epochs)\n",
-		parseStats.TotalMessages, parseStats.RawxMessages, len(epochs))
-
-	if len(epochs) == 0 {
-		fmt.Fprintln(os.Stderr, "warning: no RAWX epochs found in input file")
+	switch *format {
+	case "rinex2", "rinex3", "both":
+	default:
+		fmt.Fprintf(os.Stderr, "error: --format must be rinex2, rinex3, or both (got %q)\n", *format)
+		os.Exit(1)
 	}
 
-	// 2. Apply receiver clock correction (RTKLIB -TADJ=0.1 equivalent).
-	epochs = pipeline.CorrectClockBias(epochs, pipeline.ClockCorrConfig{TADJ: 0.1})
-
-	// 3. Auto-trim startup/teardown instability.
-	autoTrimmed, trimResult := pipeline.AutoTrim(epochs, pipeline.DefaultAutoTrimConfig())
-	if len(autoTrimmed) > 0 {
-		fmt.Fprintf(os.Stderr, "Auto-trim: %s\n", trimResult.Reason)
-		epochs = autoTrimmed
+	// Scan for .ubx files.
+	matches, err := filepath.Glob(filepath.Join(*inputDir, "*.ubx"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error scanning input directory: %v\n", err)
+		os.Exit(1)
+	}
+	if len(matches) == 0 {
+		fmt.Fprintln(os.Stderr, "error: no .ubx files found in input directory")
+		os.Exit(1)
 	}
 
-	// 4. Run the normalization pipeline.
-	cfg := pipeline.DefaultConfig()
-	cfg.Normalize.IntervalSec = *interval
-	cfg.Trim = pipeline.TrimConfig{} // trimming already applied
-	processed, pipeStats := pipeline.Process(epochs, cfg)
-
-	// 4. Build output metadata.
-	meta := gnss.Metadata{
-		MarkerName:   "UNKNOWN",
-		MarkerNumber: "UNKNOWN",
-		ReceiverType: "UNKNOWN",
-		AntennaType:  "UNKNOWN NONE",
-		Observer:     "UNKNOWN",
-		Agency:       "UNKNOWN",
-		Interval:     float64(*interval),
-	}
-	if len(processed) > 0 {
-		meta.FirstEpoch = processed[0].Time
-		meta.LastEpoch = processed[len(processed)-1].Time
-	}
-	if parseStats.BestPosition != nil {
-		meta.ApproxX, meta.ApproxY, meta.ApproxZ = parseStats.BestPosition.ECEF()
+	// Ensure output directory exists.
+	if err := os.MkdirAll(*outputDir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "error creating output directory: %v\n", err)
+		os.Exit(1)
 	}
 
-	warnings := meta.Validate()
-	for _, w := range warnings {
-		fmt.Fprintf(os.Stderr, "WARNING: missing %s\n", w)
-	}
-
-	// 5. Write output file(s).
+	// Derive output extension from format.
+	ext := ".rnx"
 	switch *format {
 	case "rinex2":
-		if err := writeFile(*output, func(w *os.File) error {
-			return rinex.WriteRinex2(w, meta, processed)
-		}); err != nil {
-			fmt.Fprintf(os.Stderr, "error writing RINEX 2: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Fprintf(os.Stderr, "Output: %s\n", *output)
-
-	case "rinex3":
-		if err := writeFile(*output, func(w *os.File) error {
-			return rinex.WriteRinex3(w, meta, processed)
-		}); err != nil {
-			fmt.Fprintf(os.Stderr, "error writing RINEX 3: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Fprintf(os.Stderr, "Output: %s\n", *output)
-
+		ext = ".obs"
 	case "both":
-		base := strings.TrimSuffix(*output, filepath.Ext(*output))
-		obsPath := base + ".obs"
-		rnxPath := base + ".rnx"
-
-		if err := writeFile(obsPath, func(w *os.File) error {
-			return rinex.WriteRinex2(w, meta, processed)
-		}); err != nil {
-			fmt.Fprintf(os.Stderr, "error writing RINEX 2: %v\n", err)
-			os.Exit(1)
-		}
-		if err := writeFile(rnxPath, func(w *os.File) error {
-			return rinex.WriteRinex3(w, meta, processed)
-		}); err != nil {
-			fmt.Fprintf(os.Stderr, "error writing RINEX 3: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Fprintf(os.Stderr, "Output: %s, %s\n", obsPath, rnxPath)
+		ext = ".rnx" // primary extension; both writes .obs and .rnx
 	}
 
-	// 6. Print stats summary.
-	fmt.Fprintf(os.Stderr, "\n--- Processing Summary ---\n")
-	fmt.Fprintf(os.Stderr, "  Input epochs:    %d\n", pipeStats.InputEpochs)
-	fmt.Fprintf(os.Stderr, "  After trim:      %d\n", pipeStats.AfterTrim)
-	fmt.Fprintf(os.Stderr, "  After filter:    %d\n", pipeStats.AfterFilter)
-	fmt.Fprintf(os.Stderr, "  After normalize: %d\n", pipeStats.AfterNormalize)
-	if pipeStats.DroppedOffGrid > 0 {
-		fmt.Fprintf(os.Stderr, "  Dropped (off-grid): %d\n", pipeStats.DroppedOffGrid)
+	// Process each file sequentially.
+	results := make([]convertResult, 0, len(matches))
+	for i, inputPath := range matches {
+		base := strings.TrimSuffix(filepath.Base(inputPath), ".ubx")
+		outputPath := filepath.Join(*outputDir, base+ext)
+
+		fmt.Fprintf(os.Stderr, "[%d/%d] Processing %s ...\n", i+1, len(matches), filepath.Base(inputPath))
+
+		result := processUBXFile(inputPath, outputPath, *format, *interval)
+		if result.Err != nil {
+			fmt.Fprintf(os.Stderr, "  ERROR: %v\n", result.Err)
+		} else {
+			fmt.Fprintf(os.Stderr, "  OK: %d epochs, %s\n", result.Epochs, result.Duration.Truncate(time.Second))
+		}
+		results = append(results, result)
 	}
-	if pipeStats.DroppedDuplicate > 0 {
-		fmt.Fprintf(os.Stderr, "  Dropped (duplicate): %d\n", pipeStats.DroppedDuplicate)
+
+	// Print summary table.
+	fmt.Fprintf(os.Stderr, "\n--- Batch Summary ---\n")
+	tw := tabwriter.NewWriter(os.Stderr, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(tw, "FILE\tSTATUS\tEPOCHS\tDURATION\tOBS")
+	failed := 0
+	for _, r := range results {
+		name := filepath.Base(r.InputFile)
+		if r.Err != nil {
+			fmt.Fprintf(tw, "%s\tFAILED\t-\t-\t-\n", name)
+			failed++
+		} else {
+			fmt.Fprintf(tw, "%s\tOK\t%d\t%s\t%d\n", name, r.Epochs, r.Duration.Truncate(time.Second), r.ObsCount)
+		}
+	}
+	tw.Flush()
+
+	fmt.Fprintf(os.Stderr, "\nProcessed %d files: %d succeeded, %d failed\n",
+		len(results), len(results)-failed, failed)
+
+	if failed > 0 {
+		os.Exit(1)
 	}
 }
 
@@ -225,7 +333,8 @@ Usage:
   rinexprep <command> [options]
 
 Commands:
-  convert    Convert UBX to RINEX
+  convert    Convert a single UBX file to RINEX
+  batch      Convert multiple UBX files in a directory
   serve      Start the HTTP API server
   version    Print version
 
