@@ -14,18 +14,33 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    # Skip branch builds when a tag is pushed (tag job handles it)
+    if: ${{ !(github.ref_type == 'branch' && startsWith(github.event.head_commit.message, '')) && true }}
     permissions:
       contents: write
       packages: write
 
     steps:
+      - name: Check for duplicate run
+        id: dedup
+        run: |
+          if [[ "${{ github.ref_type }}" == "branch" ]]; then
+            # Check if this commit has a version tag — if so, skip (tag push will handle it)
+            git ls-remote --tags "${{ github.server_url }}/${{ github.repository }}" | grep -q "${{ github.sha }}" && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.dedup.outputs.skip != 'true'
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
+        if: steps.dedup.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
+        if: steps.dedup.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY_GHCR }}
@@ -33,7 +48,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
-        if: vars.DOCKERHUB_USERNAME != ''
+        if: steps.dedup.outputs.skip != 'true' && vars.DOCKERHUB_USERNAME != ''
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY_DOCKER }}
@@ -41,6 +56,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract metadata
+        if: steps.dedup.outputs.skip != 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -48,13 +64,17 @@ jobs:
             ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}
             ${{ vars.DOCKERHUB_USERNAME && format('{0}/{1}', vars.DOCKERHUB_USERNAME, 'rinexprep') || '' }}
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            # Tag pushes: version tags + latest
+            type=semver,pattern={{version}},enable=${{ github.ref_type == 'tag' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            # Branch pushes: dev tag only
+            type=raw,value=dev,enable=${{ github.ref_type == 'branch' }}
+            # Always include short SHA
             type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
+        if: steps.dedup.outputs.skip != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -70,7 +90,7 @@ jobs:
           sbom: true
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.dedup.outputs.skip != 'true' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
