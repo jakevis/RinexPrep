@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import Header from './components/Header'
 import UploadZone from './components/UploadZone'
+import JobList from './components/JobList'
 import SatelliteChart from './components/SatelliteChart'
 import SkyviewPlot from './components/SkyviewPlot'
 import TrimSliders from './components/TrimSliders'
@@ -9,109 +10,190 @@ import DownloadPanel from './components/DownloadPanel'
 import SessionStats from './components/SessionStats'
 import ConfigGuide from './components/ConfigGuide'
 import * as api from './api'
-import type { AppState, PreviewData, OutputFile } from './types'
+import type { JobEntry } from './types'
 import { Loader2, X } from 'lucide-react'
 
 function App() {
-  const [appState, setAppState] = useState<AppState>('idle')
-  const [jobId, setJobId] = useState<string | null>(null)
+  const [jobs, setJobs] = useState<JobEntry[]>([])
+  const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
-  const [preview, setPreview] = useState<PreviewData | null>(null)
-  const [trimStart, setTrimStart] = useState(0)
-  const [trimEnd, setTrimEnd] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [progressMessage, setProgressMessage] = useState<string | null>(null)
   const [expandedPanel, setExpandedPanel] = useState<string | null>(null)
-  const [outputFiles, setOutputFiles] = useState<OutputFile[] | undefined>()
 
-  const handleFileSelected = useCallback(async (file: File) => {
-    setError(null)
-    setAppState('uploading')
+  const activeJob = useMemo(
+    () => jobs.find((j) => j.id === activeJobId) ?? null,
+    [jobs, activeJobId],
+  )
+
+  // Derive the app-level display state from the active job
+  const appState = useMemo(() => {
+    if (!activeJob) {
+      // Show uploading spinner if any job is still uploading
+      if (jobs.some((j) => j.status === 'uploading')) return 'uploading' as const
+      return 'idle' as const
+    }
+    switch (activeJob.status) {
+      case 'uploading': return 'uploading' as const
+      case 'parsing': return 'processing' as const
+      case 'processing': return 'processing' as const
+      case 'preview': return 'preview' as const
+      case 'ready': return 'ready' as const
+      case 'failed': return 'idle' as const
+      default: return 'idle' as const
+    }
+  }, [activeJob, jobs])
+
+  const updateJob = useCallback((id: string, patch: Partial<JobEntry>) => {
+    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, ...patch } : j)))
+  }, [])
+
+  const uploadAndPollFile = useCallback(async (file: File) => {
+    // Create a temporary ID for the uploading state
+    const tempId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const entry: JobEntry = {
+      id: tempId,
+      fileName: file.name,
+      status: 'uploading',
+      trimStart: 0,
+      trimEnd: 0,
+    }
+    setJobs((prev) => [...prev, entry])
+    setActiveJobId(tempId)
     setUploadProgress(0)
+    setError(null)
 
     try {
       const { jobId: newJobId } = await api.uploadFile(file, setUploadProgress)
-      setJobId(newJobId)
+      // Replace temp entry with real job ID
+      setJobs((prev) =>
+        prev.map((j) => (j.id === tempId ? { ...j, id: newJobId, status: 'parsing' } : j)),
+      )
+      setActiveJobId(newJobId)
       setUploadProgress(null)
-      setAppState('processing')
 
-      // Poll for job completion
-      const pollInterval = setInterval(async () => {
-        try {
-          const status = await api.getJobStatus(newJobId)
-          if (status.progress) {
-            setProgressMessage(status.progress)
-          }
-          if (status.status === 'preview') {
+      // Poll for parse completion
+      await new Promise<void>((resolve, reject) => {
+        const pollInterval = setInterval(async () => {
+          try {
+            const status = await api.getJobStatus(newJobId)
+            if (status.progress) {
+              setProgressMessage(status.progress)
+            }
+            if (status.status === 'preview') {
+              clearInterval(pollInterval)
+              const previewData = await api.getPreview(newJobId)
+              setJobs((prev) =>
+                prev.map((j) =>
+                  j.id === newJobId
+                    ? {
+                        ...j,
+                        status: 'preview',
+                        preview: previewData,
+                        trimStart: previewData.auto_trim?.start_sec ?? 0,
+                        trimEnd: previewData.auto_trim?.end_sec ?? previewData.total_duration_sec ?? 0,
+                      }
+                    : j,
+                ),
+              )
+              setProgressMessage(null)
+              resolve()
+            } else if (status.status === 'failed') {
+              clearInterval(pollInterval)
+              setJobs((prev) =>
+                prev.map((j) =>
+                  j.id === newJobId ? { ...j, status: 'failed', error: status.error ?? 'Processing failed' } : j,
+                ),
+              )
+              setProgressMessage(null)
+              resolve() // resolve (not reject) so the queue continues
+            }
+          } catch {
             clearInterval(pollInterval)
-            const previewData = await api.getPreview(newJobId)
-            setPreview(previewData)
-            setTrimStart(previewData.auto_trim?.start_sec ?? 0)
-            setTrimEnd(previewData.auto_trim?.end_sec ?? previewData.total_duration_sec ?? 0)
+            setJobs((prev) =>
+              prev.map((j) =>
+                j.id === newJobId ? { ...j, status: 'failed', error: 'Lost connection to server' } : j,
+              ),
+            )
             setProgressMessage(null)
-            setAppState('preview')
-          } else if (status.status === 'failed') {
-            clearInterval(pollInterval)
-            setError(status.error ?? 'Processing failed')
-            setProgressMessage(null)
-            setAppState('idle')
+            reject(new Error('Lost connection'))
           }
-        } catch {
-          clearInterval(pollInterval)
-          setError('Lost connection to server')
-          setProgressMessage(null)
-          setAppState('idle')
-        }
-      }, 1000)
+        }, 1000)
+      })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed')
+      // Upload itself failed — remove the temp entry
+      setJobs((prev) => prev.filter((j) => j.id !== tempId))
       setUploadProgress(null)
-      setAppState('idle')
+      setError(err instanceof Error ? err.message : 'Upload failed')
     }
   }, [])
 
-  const handleTrimChange = useCallback((start: number, end: number) => {
-    setTrimStart(start)
-    setTrimEnd(end)
-    setAppState((prev) => (prev === 'ready' ? 'preview' : prev))
-  }, [])
-
-  const handleProcess = useCallback(
-    async () => {
-      if (!jobId) return
-      setIsProcessing(true)
-      setError(null)
-      try {
-        await api.submitTrim(jobId, trimStart, trimEnd)
-        await api.processJob(jobId)
-        const filesResp = await api.getOutputFiles(jobId)
-        setOutputFiles(filesResp.files)
-        setAppState('ready')
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Processing failed')
-      } finally {
-        setIsProcessing(false)
+  const handleFilesSelected = useCallback(
+    async (files: File[]) => {
+      // Process files sequentially
+      for (const file of files) {
+        await uploadAndPollFile(file)
       }
     },
-    [jobId, trimStart, trimEnd],
+    [uploadAndPollFile],
   )
 
-  const handleDownload = useCallback(async (format?: string) => {
-    if (!jobId) return
+  const handleSelectJob = useCallback((id: string) => {
+    setActiveJobId(id)
+    setError(null)
+  }, [])
+
+  const handleTrimChange = useCallback(
+    (start: number, end: number) => {
+      if (!activeJobId) return
+      updateJob(activeJobId, {
+        trimStart: start,
+        trimEnd: end,
+        // Reset to preview if was ready (user changed trim)
+        ...(activeJob?.status === 'ready' ? { status: 'preview', outputFiles: undefined } : {}),
+      })
+    },
+    [activeJobId, activeJob, updateJob],
+  )
+
+  const handleProcess = useCallback(async () => {
+    if (!activeJobId || !activeJob) return
+    setIsProcessing(true)
+    setError(null)
+    updateJob(activeJobId, { status: 'processing' })
     try {
-      const blob = await api.downloadResult(jobId, format)
-      const ext = format === 'rinex2' ? '.obs' : format === 'rinex3' ? '.rnx' : '.zip'
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `rinex_output${ext}`
-      a.click()
-      URL.revokeObjectURL(url)
+      await api.submitTrim(activeJobId, activeJob.trimStart, activeJob.trimEnd)
+      await api.processJob(activeJobId)
+      const filesResp = await api.getOutputFiles(activeJobId)
+      updateJob(activeJobId, { status: 'ready', outputFiles: filesResp.files })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Download failed')
+      setError(err instanceof Error ? err.message : 'Processing failed')
+      updateJob(activeJobId, { status: 'preview' })
+    } finally {
+      setIsProcessing(false)
     }
-  }, [jobId])
+  }, [activeJobId, activeJob, updateJob])
+
+  const handleDownload = useCallback(
+    async (format?: string) => {
+      if (!activeJobId) return
+      try {
+        const blob = await api.downloadResult(activeJobId, format)
+        const baseName = activeJob?.fileName?.replace(/\.ubx$/i, '') ?? 'rinex_output'
+        const ext = format === 'rinex2' ? '.obs' : format === 'rinex3' ? '.rnx' : '.zip'
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${baseName}${ext}`
+        a.click()
+        URL.revokeObjectURL(url)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Download failed')
+      }
+    },
+    [activeJobId, activeJob],
+  )
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
@@ -127,9 +209,16 @@ function App() {
 
         {/* Upload section */}
         <UploadZone
-          onFileSelected={handleFileSelected}
+          onFilesSelected={handleFilesSelected}
           uploadProgress={uploadProgress}
-          isUploading={appState === 'uploading'}
+          isUploading={jobs.some((j) => j.status === 'uploading')}
+        />
+
+        {/* Job list */}
+        <JobList
+          jobs={jobs}
+          activeJobId={activeJobId}
+          onSelectJob={handleSelectJob}
         />
 
         {/* Processing spinner */}
@@ -142,16 +231,16 @@ function App() {
         )}
 
         {/* Preview & controls */}
-        {(appState === 'preview' || appState === 'ready') && preview && (
+        {(appState === 'preview' || appState === 'ready') && activeJob?.preview && (
           <>
             {/* Charts row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
               <div className="lg:col-span-2 flex">
                 <div className="w-full">
                   <SatelliteChart
-                    epochs={preview.epochs}
-                    trimRange={{ start: trimStart, end: trimEnd }}
-                    autoTrim={preview.auto_trim}
+                    epochs={activeJob.preview.epochs}
+                    trimRange={{ start: activeJob.trimStart, end: activeJob.trimEnd }}
+                    autoTrim={activeJob.preview.auto_trim}
                     onExpand={() => setExpandedPanel('chart')}
                   />
                 </div>
@@ -159,7 +248,7 @@ function App() {
               <div className="flex">
                 <div className="w-full">
                   <SkyviewPlot
-                    satellites={preview.skyview}
+                    satellites={activeJob.preview.skyview}
                     onExpand={() => setExpandedPanel('skyview')}
                   />
                 </div>
@@ -171,32 +260,32 @@ function App() {
               <div className="flex">
                 <div className="w-full">
                   <SessionStats
-                    preview={preview}
-                    trimStart={trimStart}
-                    trimEnd={trimEnd}
+                    preview={activeJob.preview}
+                    trimStart={activeJob.trimStart}
+                    trimEnd={activeJob.trimEnd}
                   />
                 </div>
               </div>
               <div className="flex flex-col gap-4">
-                <QCSummary qc={preview.qc} />
+                <QCSummary qc={activeJob.preview.qc} />
                 <TrimSliders
-                  totalDuration={preview.total_duration_sec}
-                  trimStart={trimStart}
-                  trimEnd={trimEnd}
-                  autoTrim={preview.auto_trim}
-                  startTimeUTC={preview.start_time_utc}
+                  totalDuration={activeJob.preview.total_duration_sec}
+                  trimStart={activeJob.trimStart}
+                  trimEnd={activeJob.trimEnd}
+                  autoTrim={activeJob.preview.auto_trim}
+                  startTimeUTC={activeJob.preview.start_time_utc}
                   onTrimChange={handleTrimChange}
                 />
               </div>
               <div className="flex">
                 <div className="w-full">
                   <DownloadPanel
-                    jobId={jobId}
+                    jobId={activeJobId}
                     isReady={appState === 'ready'}
                     onProcess={handleProcess}
                     onDownload={handleDownload}
                     isProcessing={isProcessing}
-                    outputFiles={outputFiles}
+                    outputFiles={activeJob.outputFiles}
                   />
                 </div>
               </div>
@@ -221,14 +310,14 @@ function App() {
                   {expandedPanel === 'chart' && (
                     <div className="h-[70vh]">
                       <SatelliteChart
-                        epochs={preview.epochs}
-                        trimRange={{ start: trimStart, end: trimEnd }}
-                        autoTrim={preview.auto_trim}
+                        epochs={activeJob.preview.epochs}
+                        trimRange={{ start: activeJob.trimStart, end: activeJob.trimEnd }}
+                        autoTrim={activeJob.preview.auto_trim}
                       />
                     </div>
                   )}
                   {expandedPanel === 'skyview' && (
-                    <SkyviewPlot satellites={preview.skyview} />
+                    <SkyviewPlot satellites={activeJob.preview.skyview} />
                   )}
                 </div>
               </div>
@@ -237,7 +326,7 @@ function App() {
         )}
 
         {/* Idle state - show config guide and placeholders */}
-        {appState === 'idle' && (
+        {appState === 'idle' && jobs.length === 0 && (
           <>
             <ConfigGuide />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
