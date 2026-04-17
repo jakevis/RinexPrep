@@ -1,5 +1,18 @@
 export type AppState = 'idle' | 'uploading' | 'processing' | 'preview' | 'ready'
 
+export type JobEntryStatus = 'uploading' | 'parsing' | 'preview' | 'processing' | 'ready' | 'failed'
+
+export interface JobEntry {
+  id: string
+  fileName: string
+  status: JobEntryStatus
+  error?: string
+  preview?: PreviewData
+  trimStart: number
+  trimEnd: number
+  outputFiles?: OutputFile[]
+}
+
 export interface JobStatus {
   id: string
   status: string

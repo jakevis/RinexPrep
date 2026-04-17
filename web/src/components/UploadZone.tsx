@@ -3,40 +3,33 @@ import { useDropzone } from 'react-dropzone'
 import { Upload, FileUp } from 'lucide-react'
 
 interface UploadZoneProps {
-  onFileSelected: (file: File) => void
+  onFilesSelected: (files: File[]) => void
   uploadProgress: number | null
   isUploading: boolean
 }
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
 export default function UploadZone({
-  onFileSelected,
+  onFilesSelected,
   uploadProgress,
   isUploading,
 }: UploadZoneProps) {
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
       if (acceptedFiles.length > 0) {
-        onFileSelected(acceptedFiles[0])
+        onFilesSelected(acceptedFiles)
       }
     },
-    [onFileSelected],
+    [onFilesSelected],
   )
 
-  const { getRootProps, getInputProps, isDragActive, acceptedFiles } =
+  const { getRootProps, getInputProps, isDragActive } =
     useDropzone({
       onDrop,
       accept: { 'application/octet-stream': ['.ubx'] },
-      maxFiles: 1,
+      multiple: true,
       disabled: isUploading,
     })
 
-  const file = acceptedFiles[0]
 
   return (
     <div
@@ -67,7 +60,7 @@ export default function UploadZone({
         ) : (
           <div>
             <p className="text-gray-700 dark:text-gray-300 font-medium">
-              Drag & drop a <span className="font-mono text-sm">.ubx</span> file here
+              Drag & drop <span className="font-mono text-sm">.ubx</span> files here
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               or click to browse
@@ -75,12 +68,7 @@ export default function UploadZone({
           </div>
         )}
 
-        {file && !isUploading && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-            Selected: <span className="font-medium">{file.name}</span>{' '}
-            ({formatFileSize(file.size)})
-          </p>
-        )}
+        
       </div>
 
       {uploadProgress !== null && (
