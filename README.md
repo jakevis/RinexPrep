@@ -23,7 +23,7 @@
 
 ## OPUS Quality
 
-RinexPrep matches or exceeds Emlid Studio and RTKLIB conversion quality for OPUS submissions. Real-world testing shows **97% ambiguity resolution**, **0.013m RMS**, and millimeter-accurate coordinates — on par with commercial workflows.
+RinexPrep matches or exceeds RTKLIB conversion quality for OPUS submissions. Real-world testing shows **97% ambiguity resolution**, **0.013m RMS**, and millimeter-accurate coordinates — on par with commercial workflows.
 
 Where it differs from RTKLIB:
 
