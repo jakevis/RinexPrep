@@ -454,10 +454,24 @@ options: {
 | `batch-processing` | ✅ | Multi-file upload support |
 | `web-ui` | ✅ | React 19 + TypeScript + Vite + Tailwind CSS SPA |
 | `opus-submit` | ✅ | Direct OPUS submission endpoint |
+| `chunked-upload` | ✅ | Chunked file uploads for Cloudflare Tunnel compatibility |
 
 **Descoped:**
 - `auth-api` — No authentication; all data is transient with auto-expiring jobs
 - `object-storage` — Local filesystem only; transient data does not warrant cloud storage
+
+### Phase 4 — AUSPOS Integration (in progress, `feat/auspos-support` branch)
+
+| Todo | Status | Description | Issue |
+|------|--------|-------------|-------|
+| `auspos-handler` | 🔲 | Backend submission handler (`api/auspos.go`) | #38 |
+| `auspos-validation` | 🔲 | AUSPOS-specific RINEX validation warnings | #39 |
+| `auspos-frontend` | 🔲 | Service selector UI (OPUS / AUSPOS) in DownloadPanel | #40 |
+| `auspos-docs` | 🔲 | Documentation updates (README, PLAN, instructions) | #41 |
+
+AUSPOS (Geoscience Australia) provides ITRF2020, GDA2020, and GDA94 coordinates.
+Free, no login required, works globally. GPS-only L1+L2, same as OPUS.
+See #37 for full requirements and plan.
 
 ---
 
