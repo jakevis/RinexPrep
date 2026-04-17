@@ -7,6 +7,7 @@ type Config struct {
 	Normalize NormalizeConfig
 	Filter    FilterConfig
 	Trim      TrimConfig
+	ArcPrune  ArcPruneConfig
 }
 
 // DefaultConfig returns sensible defaults for OPUS processing.
@@ -15,6 +16,7 @@ func DefaultConfig() Config {
 		Normalize: DefaultNormalizeConfig(),
 		Filter:    DefaultFilterConfig(),
 		Trim:      TrimConfig{}, // no trimming by default
+		ArcPrune:  DefaultArcPruneConfig(),
 	}
 }
 
@@ -24,6 +26,7 @@ type Stats struct {
 	AfterTrim        int
 	AfterFilter      int
 	AfterNormalize   int
+	AfterArcPrune    int
 	DroppedOffGrid   int
 	DroppedLowSats   int
 	DroppedDuplicate int
@@ -47,14 +50,17 @@ func Process(epochs []gnss.Epoch, cfg Config) ([]gnss.Epoch, *Stats) {
 	normalized := Normalize(filtered, cfg.Normalize)
 	stats.AfterNormalize = len(normalized)
 
+	// Stage 4: prune short boundary arcs (operates on normalized 30s epochs)
+	pruned := PruneShortBoundaryArcs(normalized, cfg.ArcPrune)
+	stats.AfterArcPrune = len(pruned)
+
 	// Compute detailed drop reasons from normalize stage.
-	// Count how many were off-grid vs duplicates.
 	droppedTotal := stats.AfterFilter - stats.AfterNormalize
 	offGrid := countOffGrid(filtered, cfg.Normalize.SnapToleranceNs)
 	stats.DroppedOffGrid = offGrid
 	stats.DroppedDuplicate = droppedTotal - offGrid
 
-	return normalized, stats
+	return pruned, stats
 }
 
 // countOffGrid counts epochs whose grid offset exceeds the snap tolerance.
