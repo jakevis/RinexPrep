@@ -32,11 +32,16 @@ func signalFreq(band uint8) float64 {
 	}
 }
 
-// CorrectClockBias applies RTKLIB-style time tag adjustment to epochs.
-// This rounds epoch timestamps to the nearest TADJ grid point so that
-// epochs align cleanly with the observation interval grid.
-// Pseudorange and carrier phase values are NOT modified — they retain
-// the receiver clock bias which OPUS estimates and removes during processing.
+// CorrectClockBias applies RTKLIB-style receiver clock correction to epochs.
+// This adjusts epoch timestamps to the nearest TADJ grid point AND corrects
+// pseudorange and carrier phase measurements to remove the clock bias.
+//
+// Algorithm (from RTKLIB ublox.c decode_rxmrawx):
+//
+//	toff = (tow/tadj - floor(tow/tadj + 0.5)) * tadj
+//	time -= toff
+//	P -= toff * CLIGHT
+//	L -= toff * freq
 func CorrectClockBias(epochs []gnss.Epoch, cfg ClockCorrConfig) []gnss.Epoch {
 	if cfg.TADJ <= 0 || len(epochs) == 0 {
 		return epochs
@@ -51,10 +56,27 @@ func CorrectClockBias(epochs []gnss.Epoch, cfg ClockCorrConfig) []gnss.Epoch {
 		corrected := ep
 		corrected.Time.TOWNanos = int64(math.Round((tow - toff) * 1e9))
 
-		// Deep copy satellites (no measurement modification)
+		// Deep copy satellites and correct measurements
 		corrected.Satellites = make([]gnss.SatObs, len(ep.Satellites))
-		copy(corrected.Satellites, ep.Satellites)
-
+		for j, sat := range ep.Satellites {
+			corrected.Satellites[j] = gnss.SatObs{
+				Constellation: sat.Constellation,
+				PRN:           sat.PRN,
+				Signals:       make([]gnss.Signal, len(sat.Signals)),
+			}
+			for k, sig := range sat.Signals {
+				corrected.Satellites[j].Signals[k] = sig
+				if toff != 0 {
+					freq := signalFreq(sig.FreqBand)
+					if sig.PRValid && sig.Pseudorange != 0 {
+						corrected.Satellites[j].Signals[k].Pseudorange -= toff * cLight
+					}
+					if sig.CPValid && sig.CarrierPhase != 0 {
+						corrected.Satellites[j].Signals[k].CarrierPhase -= toff * freq
+					}
+				}
+			}
+		}
 		result[i] = corrected
 	}
 	return result
