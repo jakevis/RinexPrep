@@ -248,10 +248,6 @@ func TestWriter3_EpochLine(t *testing.T) {
 
 	// Must contain 4-digit year
 	year, _, _, _, _, _ := GNSSTimeToCalendar(epoch.Time)
-	yearStr := strings.TrimSpace(epochLine[2:6])
-	if yearStr != strings.TrimSpace(strings.Fields(epochLine[1:])[0]) {
-		// just check year is 4 digits
-	}
 	if year < 2000 || year > 2100 {
 		t.Errorf("unexpected year %d", year)
 	}

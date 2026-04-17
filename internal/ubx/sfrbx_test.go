@@ -372,7 +372,7 @@ func TestSfrbxNonGPSNotStored(t *testing.T) {
 	if stats.SfrbxMessages != 1 {
 		t.Errorf("SfrbxMessages = %d, want 1", stats.SfrbxMessages)
 	}
-	if stats.Ephemerides != nil && len(stats.Ephemerides) > 0 {
+	if len(stats.Ephemerides) > 0 {
 		t.Error("expected no ephemeris entries for non-GPS")
 	}
 }

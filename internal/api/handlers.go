@@ -430,7 +430,9 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 				slog.Error("zip_create_failed", "error", err)
 				continue
 			}
-			io.Copy(fw, f)
+			if _, err := io.Copy(fw, f); err != nil {
+				slog.Error("zip_copy_failed", "error", err)
+			}
 			f.Close()
 		}
 		if err := zw.Close(); err != nil {
@@ -1078,11 +1080,11 @@ func extractJobID(path, prefix, suffix string) string {
 func jsonResponse(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func jsonError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }

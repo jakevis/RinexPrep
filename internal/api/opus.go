@@ -109,17 +109,23 @@ func (s *Server) handleOPUSSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add form fields — field names must match the OPUS upload form
-	writer.WriteField("email_address", req.Email)
-	writer.WriteField("ant_type", req.AntennaType)
-	writer.WriteField("height", fmt.Sprintf("%.3f", req.Height))
-	// Hidden fields required by OPUS form
-	writer.WriteField("extend_code", "0")
-	writer.WriteField("xml_code", "0")
-	writer.WriteField("set_profile", "0")
-	writer.WriteField("delete_profile", "0")
-	writer.WriteField("share", "2")
-	writer.WriteField("submit_database", "0")
-	writer.WriteField("opusOption", "0")
+	for _, field := range []struct{ k, v string }{
+		{"email_address", req.Email},
+		{"ant_type", req.AntennaType},
+		{"height", fmt.Sprintf("%.3f", req.Height)},
+		{"extend_code", "0"},
+		{"xml_code", "0"},
+		{"set_profile", "0"},
+		{"delete_profile", "0"},
+		{"share", "2"},
+		{"submit_database", "0"},
+		{"opusOption", "0"},
+	} {
+		if err := writer.WriteField(field.k, field.v); err != nil {
+			jsonError(w, "failed to build OPUS request", http.StatusInternalServerError)
+			return
+		}
+	}
 
 	writer.Close()
 

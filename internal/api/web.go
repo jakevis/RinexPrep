@@ -36,7 +36,7 @@ func (s *Server) serveFrontend(w http.ResponseWriter, r *http.Request) {
 	if s.frontendFS == nil {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(placeholderHTML))
+		_, _ = w.Write([]byte(placeholderHTML))
 		return
 	}
 
@@ -58,11 +58,11 @@ func (s *Server) serveFrontend(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(placeholderHTML))
+		_, _ = w.Write([]byte(placeholderHTML))
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write(indexData)
+	_, _ = w.Write(indexData)
 }

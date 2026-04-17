@@ -76,7 +76,6 @@ func (t GNSSTime) GridOffset30s() int64 {
 
 // SnapToGrid30s returns a new GNSSTime snapped to the nearest 30-second boundary.
 func (t GNSSTime) SnapToGrid30s() GNSSTime {
-	const grid30s int64 = 30_000_000_000
 	offset := t.GridOffset30s()
 	snapped := t
 	snapped.TOWNanos = t.TOWNanos - offset

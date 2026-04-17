@@ -167,7 +167,10 @@ func runConvert(args []string) {
 	output := fs.String("output", "", "output RINEX file (required)")
 	format := fs.String("format", "rinex2", "output format: rinex2, rinex3, both")
 	interval := fs.Int("interval", 30, "observation interval in seconds")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 
 	if *input == "" || *output == "" {
 		fmt.Fprintln(os.Stderr, "error: --input and --output are required")
@@ -201,7 +204,10 @@ func runBatch(args []string) {
 	outputDir := fs.String("output-dir", "", "directory for RINEX output (required)")
 	format := fs.String("format", "rinex3", "output format: rinex2, rinex3, both")
 	interval := fs.Int("interval", 30, "observation interval in seconds")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 
 	if *inputDir == "" || *outputDir == "" {
 		fmt.Fprintln(os.Stderr, "error: --input-dir and --output-dir are required")
@@ -288,7 +294,10 @@ func runServe(args []string) {
 	port := serveFlags.Int("port", 8080, "HTTP server port")
 	dataDir := serveFlags.String("data-dir", "./data", "directory for job data storage")
 	jsonLogs := serveFlags.Bool("json-logs", false, "Output structured JSON logs")
-	serveFlags.Parse(args)
+	if err := serveFlags.Parse(args); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 
 	api.SetupLogger(*jsonLogs)
 

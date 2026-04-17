@@ -298,7 +298,9 @@ func TestTrim(t *testing.T) {
 	}
 	defer job.Body.Close()
 	var j Job
-	json.NewDecoder(job.Body).Decode(&j)
+	if err := json.NewDecoder(job.Body).Decode(&j); err != nil {
+		t.Fatal(err)
+	}
 	if j.TrimStart == nil || *j.TrimStart != 5.0 {
 		t.Fatalf("expected trim start 5.0, got %v", j.TrimStart)
 	}
@@ -322,7 +324,9 @@ func TestProcess(t *testing.T) {
 	}
 
 	var j Job
-	json.NewDecoder(resp.Body).Decode(&j)
+	if err := json.NewDecoder(resp.Body).Decode(&j); err != nil {
+		t.Fatal(err)
+	}
 	if j.Status != StatusReady {
 		t.Fatalf("expected status %q, got %q", StatusReady, j.Status)
 	}
@@ -363,7 +367,9 @@ func TestListFiles(t *testing.T) {
 			Label  string `json:"label"`
 		} `json:"files"`
 	}
-	json.NewDecoder(resp2.Body).Decode(&filesResp)
+	if err := json.NewDecoder(resp2.Body).Decode(&filesResp); err != nil {
+		t.Fatal(err)
+	}
 
 	// With fake UBX data, output files are created but may be empty;
 	// verify the response structure is valid JSON.

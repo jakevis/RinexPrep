@@ -74,7 +74,7 @@ func (rl *RateLimiter) Middleware(next http.HandlerFunc) http.HandlerFunc {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", fmt.Sprintf("%d", retry))
 			w.WriteHeader(http.StatusTooManyRequests)
-			json.NewEncoder(w).Encode(map[string]any{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"error":           "rate limit exceeded",
 				"retry_after_sec": retry,
 			})

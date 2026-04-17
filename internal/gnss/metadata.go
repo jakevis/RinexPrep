@@ -50,10 +50,8 @@ func (m Metadata) Validate() []string {
 	if m.ReceiverType == "" {
 		missing = append(missing, "receiver type")
 	}
-	if m.AntennaDeltaH == 0 {
-		// Warning, not error — could be ground mount
-		// but OPUS strongly prefers this
-	}
+	// AntennaDeltaH == 0 is a warning (could be ground mount) but not an error.
+	// OPUS strongly prefers it, but processing continues without it.
 
 	return missing
 }

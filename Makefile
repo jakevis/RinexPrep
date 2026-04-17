@@ -4,7 +4,7 @@ GOFLAGS := -v
 LDFLAGS := -s -w
 BUILD_DIR := bin
 
-.PHONY: all build test lint clean docker run fmt vet frontend-build docker-build docker-run
+.PHONY: all build test test-short lint clean coverage docker run fmt vet frontend-build docker-build docker-run dev
 
 all: lint test build
 

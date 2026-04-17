@@ -162,11 +162,6 @@ func headerLine(content string, label string) string {
 	return fmt.Sprintf("%-60s%-20s", content, label)
 }
 
-// currentTimeStr returns the current UTC time formatted for RINEX headers.
-func currentTimeStr() string {
-	return time.Now().UTC().Format("20060102 15:04:05")
-}
-
 // --- epoch / observation formatting ---
 
 // formatEpochLine builds the epoch header line(s) including satellite list.
