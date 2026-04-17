@@ -48,7 +48,7 @@ docker-compose.override.yml
 .ssh/
 
 # Copilot session persistence (mounted into container, never commit)
-.copilot-persist/
+.copilot/
 
 # Secrets and credentials
 *.pem

@@ -28,9 +28,11 @@
     }
   },
   "mounts": [
-    "source=${localWorkspaceFolder}/.ssh,target=/home/vscode/.ssh-signing,type=bind,consistency=cached",
-    "source=${localWorkspaceFolder}/.copilot-persist,target=/home/vscode/.copilot,type=bind,consistency=cached"
+    "source=${localWorkspaceFolder}/.ssh,target=/home/vscode/.ssh-signing,type=bind,consistency=cached"
   ],
+  "containerEnv": {
+    "COPILOT_HOME": "/workspaces/RinexPrep/.copilot"
+  },
   "postCreateCommand": "go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && go install github.com/air-verse/air@latest && go install gotest.tools/gotestsum@latest && go mod tidy || true && if [ -f /home/vscode/.ssh-signing/signing_key ]; then chmod 600 /home/vscode/.ssh-signing/signing_key; fi",
   "remoteUser": "vscode",
   "forwardPorts": [8080]
