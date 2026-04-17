@@ -22,11 +22,17 @@ function App() {
   const [progressMessage, setProgressMessage] = useState<string | null>(null)
   const [expandedPanel, setExpandedPanel] = useState<string | null>(null)
   const [version, setVersion] = useState<string>('')
+  const [latestVersion, setLatestVersion] = useState<string>('')
 
   useEffect(() => {
     fetch('/api/v1/version')
       .then(r => r.json())
       .then(d => setVersion(d.version))
+      .catch(() => {})
+
+    fetch('https://api.github.com/repos/jakevis/RinexPrep/releases/latest')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.tag_name) setLatestVersion(d.tag_name) })
       .catch(() => {})
   }, [])
 
@@ -352,7 +358,21 @@ function App() {
       <footer className="text-xs text-gray-400 dark:text-gray-600 py-6 border-t border-gray-200 dark:border-gray-800 px-4">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <span>RinexPrep — Open-source GNSS processing tool</span>
-          {version && <a href={`https://github.com/jakevis/RinexPrep/releases/tag/${version}`} target="_blank" rel="noopener noreferrer" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">{version}</a>}
+          {version && (
+            <span className="flex items-center gap-2">
+              <a href={`https://github.com/jakevis/RinexPrep/releases/tag/${version}`} target="_blank" rel="noopener noreferrer" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">{version}</a>
+              {latestVersion && latestVersion !== version && (
+                <a
+                  href={`https://github.com/jakevis/RinexPrep/releases/tag/${latestVersion}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+                >
+                  ({latestVersion} available)
+                </a>
+              )}
+            </span>
+          )}
         </div>
       </footer>
     </div>
