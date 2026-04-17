@@ -13,7 +13,8 @@ COPY go.mod go.sum* ./
 RUN go mod download
 COPY . .
 COPY --from=frontend /app/web/dist ./frontend/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /rinexprep ./cmd/rinexprep
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X main.Version=${VERSION}" -o /rinexprep ./cmd/rinexprep
 
 # Stage 3: Minimal runtime
 FROM gcr.io/distroless/static-debian12:nonroot
