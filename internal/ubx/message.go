@@ -15,6 +15,7 @@ const (
 	// NAV-SAT message class and ID.
 	ClassNAV  byte = 0x01
 	IDNavSat  byte = 0x35
+	IDNavPVT  byte = 0x07
 
 	// Header sizes.
 	rawxHeaderSize = 16

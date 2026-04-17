@@ -42,6 +42,9 @@ type Job struct {
 	TrimStart   *float64   `json:"trim_start_sec,omitempty"`
 	TrimEnd     *float64   `json:"trim_end_sec,omitempty"`
 	Format      string     `json:"format"`
+	ApproxX     float64    `json:"-"` // from NAV-PVT, not serialized
+	ApproxY     float64    `json:"-"`
+	ApproxZ     float64    `json:"-"`
 }
 
 // PreviewData contains parsed observation summary for the frontend.

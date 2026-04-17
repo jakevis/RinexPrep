@@ -112,6 +112,9 @@ func runConvert(args []string) {
 		meta.FirstEpoch = processed[0].Time
 		meta.LastEpoch = processed[len(processed)-1].Time
 	}
+	if parseStats.BestPosition != nil {
+		meta.ApproxX, meta.ApproxY, meta.ApproxZ = parseStats.BestPosition.ECEF()
+	}
 
 	warnings := meta.Validate()
 	for _, w := range warnings {

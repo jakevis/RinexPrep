@@ -134,6 +134,9 @@ func (s *Server) parseAndPreview(job *Job) {
 	job.Preview = preview
 	job.Status = StatusPreview
 	job.Progress = "Preview ready"
+	if stats.BestPosition != nil {
+		job.ApproxX, job.ApproxY, job.ApproxZ = stats.BestPosition.ECEF()
+	}
 	job.mu.Unlock()
 
 	slog.Info("parse_complete", "job_id", job.ID, "epochs", len(epochs))
@@ -305,6 +308,9 @@ func (s *Server) handleProcess(w http.ResponseWriter, r *http.Request) {
 
 	// Build output metadata with placeholder values.
 	meta := buildMetadata(processed, 30)
+	meta.ApproxX = job.ApproxX
+	meta.ApproxY = job.ApproxY
+	meta.ApproxZ = job.ApproxZ
 
 	// Generate descriptive filename with standard RINEX extension (.YYO)
 	var fileBase string

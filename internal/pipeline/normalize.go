@@ -16,7 +16,7 @@ type NormalizeConfig struct {
 func DefaultNormalizeConfig() NormalizeConfig {
 	return NormalizeConfig{
 		IntervalSec:     30,
-		SnapToleranceNs: 100_000_000, // 100 ms
+		SnapToleranceNs: 5_000_000_000, // 5s — fills gaps from missing 1Hz epochs (dedup keeps closest)
 	}
 }
 

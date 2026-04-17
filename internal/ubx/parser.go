@@ -19,6 +19,7 @@ type ParseStats struct {
 	ChecksumErrors int
 	NavSatData     []*NavSatEpoch
 	Ephemerides    map[uint8]*GPSEphemeris // keyed by PRN
+	BestPosition   *NavPVT                // best position fix from NAV-PVT
 }
 
 // Parse reads a UBX binary stream from r and returns decoded GNSS epochs.
@@ -111,6 +112,16 @@ func Parse(r io.Reader) ([]*gnss.Epoch, *ParseStats, error) {
 			navSat, err := decodeNavSat(payload)
 			if err == nil {
 				stats.NavSatData = append(stats.NavSatData, navSat)
+			}
+		}
+
+		if class == ClassNAV && id == IDNavPVT {
+			pvt, _ := decodeNavPVT(payload)
+			if pvt != nil && pvt.FixType == 3 {
+				// Keep the position with most satellites (best quality)
+				if stats.BestPosition == nil || pvt.NumSV > stats.BestPosition.NumSV {
+					stats.BestPosition = pvt
+				}
 			}
 		}
 
