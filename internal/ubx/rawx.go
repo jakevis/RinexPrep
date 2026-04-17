@@ -120,7 +120,7 @@ func decodeRawx(payload []byte) (*gnss.Epoch, error) {
 			LockTimeSec:  float64(locktime) / 1000.0,
 			PRValid:      trkStat&0x01 != 0,
 			CPValid:      trkStat&0x02 != 0,
-			HalfCycle:    trkStat&0x04 != 0,
+			HalfCycle:    trkStat&0x04 == 0, // bit 2 SET = resolved; we store true when UNresolved
 			SubHalfCyc:   trkStat&0x08 != 0,
 		}
 

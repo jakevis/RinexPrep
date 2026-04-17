@@ -56,7 +56,7 @@ type Signal struct {
 	LockTimeSec float64 // continuous lock time in seconds
 	PRValid     bool    // pseudorange valid
 	CPValid     bool    // carrier phase valid
-	HalfCycle   bool    // half-cycle ambiguity (not yet resolved)
+	HalfCycle   bool    // true when half-cycle ambiguity is UNresolved (UBX trkStat bit 2 CLEAR)
 	SubHalfCyc  bool    // half-cycle subtracted
 }
 
