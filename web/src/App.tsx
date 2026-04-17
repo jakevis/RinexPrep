@@ -361,7 +361,7 @@ function App() {
           {version && (
             <span className="flex items-center gap-2">
               <a href={`https://github.com/jakevis/RinexPrep/releases/tag/${version}`} target="_blank" rel="noopener noreferrer" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">{version}</a>
-              {latestVersion && latestVersion !== version && (
+              {latestVersion && latestVersion.replace(/^v/, '') !== version.replace(/^v/, '') && (
                 <a
                   href={`https://github.com/jakevis/RinexPrep/releases/tag/${latestVersion}`}
                   target="_blank"
